@@ -1040,7 +1040,7 @@ When an AI model is configured, six report sections receive **LLM-generated narr
 
 Reports support **download** (saves HTML locally), **open in new tab** (browser viewing), and **print/PDF export** (`Ctrl+P`). They are included in project export/import ZIP archives.
 
-> **[Download an example report (HTML)](https://raw.githubusercontent.com/wiki/samugit83/redamon/docs/Pentest%20Report%20%E2%80%94%20devergolabs.com.html)** — Full pentest report generated from a live assessment. See the **[Pentest Reports wiki page](https://github.com/samugit83/redamon/wiki/20.-Pentest-Reports)** for detailed documentation.
+> **[View an example report (HTML)](https://htmlpreview.github.io/?https://raw.githubusercontent.com/wiki/samugit83/redamon/docs/Pentest%20Report%20%E2%80%94%20devergolabs.com.html)** — Full pentest report generated from a live assessment, rendered in your browser. See the **[Pentest Reports wiki page](https://github.com/samugit83/redamon/wiki/20.-Pentest-Reports)** for detailed documentation.
 
 ---
 
