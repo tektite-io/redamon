@@ -175,6 +175,7 @@ flowchart TB
             NucleiC["nuclei<br/>projectdiscovery/nuclei<br/>🎯 Vuln Scanner"]
             KatanaC["katana<br/>projectdiscovery/katana<br/>🕸️ Web Crawler"]
             GAUC["gau<br/>sxcurity/gau<br/>📚 URL Archives"]
+            PurednsC["puredns<br/>frost19k/puredns<br/>🧹 Wildcard Filter"]
         end
 
         Volume["📁 Shared Volume<br/>recon/output/"]
@@ -186,6 +187,7 @@ flowchart TB
     Recon -->|docker run| NucleiC
     Recon -->|docker run| KatanaC
     Recon -->|docker run| GAUC
+    Recon -->|docker run| PurednsC
 
     NaabuC --> Volume
     HttpxC --> Volume
@@ -223,7 +225,7 @@ sequenceDiagram
     and
         Recon->>Recon: URLScan.io enrichment
     end
-    Note over Recon: Fan-In — merge results + DNS (20 parallel workers)
+    Note over Recon: Fan-In — merge results + Puredns wildcard filtering + DNS (20 parallel workers)
     Recon->>GraphBG: Background: domain discovery graph update
 
     Note over Recon,Naabu: GROUP 3 — Fan-Out (parallel)
@@ -332,7 +334,7 @@ flowchart LR
     end
 
     Domain --> G1
-    G1 -->|fan-in: merge| G3
+    G1 -->|fan-in: merge + puredns filter| G3
     G3 -->|fan-in: merge| G4
     G4 --> G5
     G5 --> G6
@@ -377,7 +379,8 @@ flowchart TB
         Amass --> Merge
         Knock --> Merge
 
-        Merge --> DNS[DNS Resolution<br/>20 parallel workers<br/>A, AAAA, MX, NS, TXT, CNAME]
+        Merge --> Puredns[Puredns Wildcard Filter<br/>Validates against public resolvers<br/>Removes wildcards & poisoned entries]
+        Puredns --> DNS[DNS Resolution<br/>20 parallel workers<br/>A, AAAA, MX, NS, TXT, CNAME]
         DNS --> Out1[(Subdomains + IPs)]
     end
 
@@ -529,7 +532,8 @@ The recon pipeline uses a **fan-out / fan-in** pattern with Python's `concurrent
 |-------|---------|-------------|--------------|
 | **GROUP 1** | WHOIS + Subdomain Discovery + URLScan | 3 parallel tasks | Only needs `root_domain` |
 | *Discovery* | crt.sh + HackerTarget + Subfinder + Amass + Knockpy | 5 parallel tools | Part of GROUP 1 |
-| *DNS* | DNS resolution for all subdomains | 20 parallel workers | After discovery fan-in |
+| *Puredns* | Wildcard filtering (validates against public resolvers) | Sequential | After discovery fan-in, before DNS |
+| *DNS* | DNS resolution for all subdomains | 20 parallel workers | After puredns filtering |
 | **GROUP 3** | Shodan Enrichment + Port Scan (Naabu) | 2 parallel tasks | Needs IPs from GROUP 1 |
 | **GROUP 4** | HTTP Probe (httpx) | Sequential (internally parallel) | Needs ports from GROUP 3 |
 | **GROUP 5** | Resource Enum (Katana + GAU + Kiterunner) | 3 tools internally parallel | Needs live URLs from GROUP 4 |
@@ -571,7 +575,7 @@ SCAN_MODULES="domain_discovery,port_scan,http_probe"
 
 ### Module 1: `domain_discovery`
 
-All 5 subdomain discovery tools run **concurrently** via `ThreadPoolExecutor(max_workers=5)`. Each tool is a thread-safe function with its own HTTP session. DNS resolution is also parallelized with **20 concurrent workers**. WHOIS and URLScan run in a separate parallel group alongside discovery.
+All 5 subdomain discovery tools run **concurrently** via `ThreadPoolExecutor(max_workers=5)`. Each tool is a thread-safe function with its own HTTP session. After merging, **Puredns** validates the combined list against public DNS resolvers to remove wildcard and DNS-poisoned entries. DNS resolution is then parallelized with **20 concurrent workers**. WHOIS and URLScan run in a separate parallel group alongside discovery.
 
 ```mermaid
 flowchart LR
@@ -613,7 +617,8 @@ flowchart LR
     Amass --> MergeDedupe
     Knock --> MergeDedupe
 
-    MergeDedupe --> DNS
+    MergeDedupe --> PD[Puredns<br/>Wildcard Filter]
+    PD --> DNS
 
     DNS --> Subs
     DNS --> IPs
@@ -624,6 +629,7 @@ flowchart LR
 |--------------|--------|
 | **WHOIS lookup** | Registrar, creation date, owner info |
 | **Subdomain discovery** | Finds subdomains via 5 parallel sources (crt.sh, HackerTarget, Subfinder, Amass, Knockpy) |
+| **Wildcard filtering** | Puredns validates subdomains against public DNS resolvers, removes wildcards and DNS-poisoned entries |
 | **DNS enumeration** | A, AAAA, MX, NS, TXT, CNAME records (20 parallel workers) |
 | **IP resolution** | Maps all discovered hostnames to IPs |
 
@@ -987,6 +993,7 @@ flowchart TB
 | Shodan | 5-15 seconds | Passive, per-IP queries |
 | URLScan | 5-20 seconds | Passive, API rate-limited |
 | Amass | 1-10 minutes | Passive; longer with active/brute |
+| Puredns | 30-90 seconds | Depends on subdomain count |
 | Naabu | 5-10 seconds | 1000 ports |
 | httpx | 10-30 seconds | All options |
 | Katana | 1-5 minutes | Crawl depth 3 |
@@ -1044,6 +1051,7 @@ docker-compose run --rm recon python /app/recon/main.py
 | Katana | `projectdiscovery/katana:latest` | Web crawling |
 | GAU | `sxcurity/gau:latest` | URL discovery |
 | Amass | `caffix/amass:latest` | Subdomain enumeration |
+| Puredns | `frost19k/puredns:latest` | Wildcard filtering |
 
 ---
 

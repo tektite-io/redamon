@@ -388,6 +388,14 @@ model Project {
   amassBrute                            Boolean  @default(false) @map("amass_brute")
   amassDockerImage                      String   @default("caffix/amass:latest") @map("amass_docker_image")
 
+  // Puredns (wildcard filtering)
+  purednsEnabled                        Boolean  @default(true)  @map("puredns_enabled")
+  purednsDockerImage                    String   @default("frost19k/puredns:latest") @map("puredns_docker_image")
+  purednsThreads                        Int      @default(0)     @map("puredns_threads")
+  purednsRateLimit                      Int      @default(0)     @map("puredns_rate_limit")
+  purednsWildcardBatch                  Int      @default(0)     @map("puredns_wildcard_batch")
+  purednsSkipValidation                 Boolean  @default(false) @map("puredns_skip_validation")
+
   // ========== PHISHING / SOCIAL ENGINEERING SETTINGS ==========
   phishingSmtpConfig                    String   @default("") @map("phishing_smtp_config")
 

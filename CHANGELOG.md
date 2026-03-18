@@ -76,6 +76,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **Entrypoint**: `projectdiscovery/subfinder:latest` added to Docker image pre-pull list
   - Results merge into existing subdomain flow — no graph schema changes needed
 
+- **Puredns Wildcard Filtering** — new post-discovery validation step that removes wildcard DNS entries and DNS-poisoned subdomains before they reach the rest of the pipeline. Runs after the 5 discovery tools merge their results and before DNS resolution. Full multi-layer integration:
+  - **Backend**: `run_puredns_resolve()` in `domain_recon.py` using Docker-in-Docker pattern with configurable threads, rate limiting, wildcard batch size, and skip-validation option
+  - **Settings**: `purednsEnabled` (default: true), `purednsThreads` (default: 0 = auto), `purednsRateLimit` (default: 0 = unlimited), `purednsDockerImage` across Prisma schema, project settings, and defaults
+  - **Frontend**: new "Wildcard Filtering" subsection with Active badge in the Subdomain Discovery section, with toggle and conditional thread/rate-limit inputs
+  - **Stealth mode**: forced off (active DNS queries)
+  - **RoE**: rate limit capped by global RoE max when enabled
+  - **Entrypoint**: `frost19k/puredns:latest` added to Docker image pre-pull list, DNS resolver list auto-downloaded from trickest/resolvers (refreshed every 7 days)
+  - **Graceful degradation**: on any error or timeout, returns the unfiltered subdomain list unchanged
+  - **Orphan cleanup**: puredns image added to `SUB_CONTAINER_IMAGES` for force-stop container cleanup
+
 - **Amass Integration** — OWASP Amass subdomain enumeration added to the recon pipeline as a new passive/active discovery source. Queries 50+ data sources (certificate transparency logs, DNS databases, web archives, WHOIS records) via the official Amass Docker image. Full multi-layer integration:
   - **Backend**: `run_amass()` in `domain_recon.py` using Docker-in-Docker pattern with configurable active mode, brute force, timeout, and max results capping
   - **Settings**: `amassEnabled` (default: false), `amassMaxResults` (default: 5000), `amassTimeout` (default: 10 min), `amassActive` (default: false), `amassBrute` (default: false), `amassDockerImage` across Prisma schema, project settings, and defaults

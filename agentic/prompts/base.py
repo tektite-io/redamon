@@ -903,8 +903,12 @@ Each node has `user_id` and `project_id` properties for tenant isolation (handle
 
 **Subdomain** - Discovered subdomains
 - name (string): "api.example.com", "www.example.com"
-- source (string): discovery source ("crt.sh", "hackertarget", "knockpy")
-- is_wildcard (boolean)
+- has_dns_records (boolean): whether DNS records were resolved
+- status (string): "resolved" (DNS only, not yet probed), "no_http" (no HTTP response), or HTTP status code as string ("200", "301", "403", "404", "500", etc.)
+- status_codes (list[int]): all unique HTTP status codes seen e.g. [200, 301, 404]
+- http_live_url_count (int): count of URLs with status < 500
+- http_probed_at (datetime): when last HTTP-probed
+- source (string): discovery source ("crt.sh", "hackertarget", "knockpy", "shodan_rdns", "shodan_dns", "urlscan")
 
 **IP** - Resolved IP addresses
 - address (string): "192.168.1.1"
@@ -1253,9 +1257,32 @@ RETURN t.name, t.version, c.id, c.severity, c.cvss
 
 ### Infrastructure Overview
 ```cypher
-// All subdomains for a domain
+// All subdomains for a domain with HTTP status
 MATCH (s:Subdomain)-[:BELONGS_TO]->(d:Domain {{name: "example.com"}})
-RETURN s.name
+RETURN s.name, s.status, s.status_codes
+ORDER BY s.status
+
+// Live subdomains (status code 2xx)
+MATCH (s:Subdomain)-[:BELONGS_TO]->(d:Domain {{name: "example.com"}})
+WHERE s.status STARTS WITH '2'
+RETURN s.name, s.status, s.http_live_url_count
+
+// 404 subdomains (potential subdomain takeover candidates)
+MATCH (s:Subdomain {{status: "404"}})-[:BELONGS_TO]->(d:Domain {{name: "example.com"}})
+RETURN s.name, s.status_codes
+
+// Forbidden subdomains (403 — may be bypassable)
+MATCH (s:Subdomain {{status: "403"}})-[:BELONGS_TO]->(d:Domain {{name: "example.com"}})
+RETURN s.name, s.status_codes
+
+// Server error subdomains (5xx — misconfigured backends)
+MATCH (s:Subdomain)-[:BELONGS_TO]->(d:Domain {{name: "example.com"}})
+WHERE s.status STARTS WITH '5'
+RETURN s.name, s.status, s.status_codes
+
+// Subdomain status distribution
+MATCH (s:Subdomain)-[:BELONGS_TO]->(d:Domain {{name: "example.com"}})
+RETURN s.status, count(s) AS count ORDER BY count DESC
 
 // Open ports on subdomains
 MATCH (s:Subdomain)-[:BELONGS_TO]->(d:Domain)

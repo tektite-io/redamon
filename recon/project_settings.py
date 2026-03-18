@@ -324,6 +324,14 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     'AMASS_BRUTE': False,
     'AMASS_DOCKER_IMAGE': 'caffix/amass:latest',
 
+    # Puredns (wildcard filtering — runs after discovery, before DNS resolution)
+    'PUREDNS_ENABLED': True,
+    'PUREDNS_DOCKER_IMAGE': 'frost19k/puredns:latest',
+    'PUREDNS_THREADS': 0,          # 0 = auto-detect
+    'PUREDNS_RATE_LIMIT': 0,       # 0 = unlimited
+    'PUREDNS_WILDCARD_BATCH': 0,   # 0 = default batch size
+    'PUREDNS_SKIP_VALIDATION': False,
+
     # Rules of Engagement (recon-relevant fields only)
     'ROE_ENABLED': False,
     'ROE_EXCLUDED_HOSTS': [],
@@ -622,6 +630,14 @@ def fetch_project_settings(project_id: str, webapp_url: str) -> dict[str, Any]:
     settings['AMASS_BRUTE'] = project.get('amassBrute', DEFAULT_SETTINGS['AMASS_BRUTE'])
     settings['AMASS_DOCKER_IMAGE'] = project.get('amassDockerImage', DEFAULT_SETTINGS['AMASS_DOCKER_IMAGE'])
 
+    # Puredns (wildcard filtering)
+    settings['PUREDNS_ENABLED'] = project.get('purednsEnabled', DEFAULT_SETTINGS['PUREDNS_ENABLED'])
+    settings['PUREDNS_DOCKER_IMAGE'] = project.get('purednsDockerImage', DEFAULT_SETTINGS['PUREDNS_DOCKER_IMAGE'])
+    settings['PUREDNS_THREADS'] = project.get('purednsThreads', DEFAULT_SETTINGS['PUREDNS_THREADS'])
+    settings['PUREDNS_RATE_LIMIT'] = project.get('purednsRateLimit', DEFAULT_SETTINGS['PUREDNS_RATE_LIMIT'])
+    settings['PUREDNS_WILDCARD_BATCH'] = project.get('purednsWildcardBatch', DEFAULT_SETTINGS['PUREDNS_WILDCARD_BATCH'])
+    settings['PUREDNS_SKIP_VALIDATION'] = project.get('purednsSkipValidation', DEFAULT_SETTINGS['PUREDNS_SKIP_VALIDATION'])
+
     # Fetch Shodan API key from user's global settings
     shodan_any = any([
         settings['SHODAN_HOST_LOOKUP'], settings['SHODAN_REVERSE_DNS'],
@@ -657,6 +673,7 @@ def fetch_project_settings(project_id: str, webapp_url: str) -> dict[str, Any]:
             'NAABU_RATE_LIMIT', 'HTTPX_RATE_LIMIT', 'NUCLEI_RATE_LIMIT',
             'KATANA_RATE_LIMIT', 'GAU_VERIFY_RATE_LIMIT', 'GAU_METHOD_DETECT_RATE_LIMIT',
             'KITERUNNER_RATE_LIMIT', 'KITERUNNER_METHOD_DETECT_RATE_LIMIT',
+            'PUREDNS_RATE_LIMIT',
         ]
         for key in RATE_LIMIT_KEYS:
             if key in settings and settings[key] > roe_max_rps:
@@ -802,6 +819,9 @@ def apply_stealth_overrides(settings: dict[str, Any]) -> dict[str, Any]:
     settings['AMASS_ACTIVE'] = False
     settings['AMASS_BRUTE'] = False
     settings['AMASS_MAX_RESULTS'] = min(settings.get('AMASS_MAX_RESULTS', 5000), 100)
+
+    # --- Puredns: DISABLED (active DNS queries) ---
+    settings['PUREDNS_ENABLED'] = False
 
     # --- Security Checks: disable active checks, keep passive ones ---
     # Active checks (make network connections to target)

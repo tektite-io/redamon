@@ -536,6 +536,110 @@ def resolve_all_dns(domain: str, subdomains: list, max_workers: int = 20) -> dic
     return result
 
 
+def run_puredns_resolve(subdomains: list, domain: str, settings: dict = None) -> list:
+    """
+    Filter subdomains using puredns resolve to remove wildcards and DNS-poisoned entries.
+
+    Runs puredns via Docker-in-Docker. Takes the combined subdomain list from all
+    discovery tools, validates each entry against public DNS resolvers, and returns
+    only the subdomains that are confirmed to exist (not wildcards or poisoned).
+
+    On any error, returns the original unfiltered list (graceful degradation).
+    """
+    if settings is None:
+        settings = {}
+
+    if not settings.get('PUREDNS_ENABLED', True):
+        print(f"[-][Puredns] Disabled — skipping wildcard filtering")
+        return subdomains
+
+    if not subdomains:
+        print(f"[-][Puredns] No subdomains to validate")
+        return subdomains
+
+    docker_image = settings.get('PUREDNS_DOCKER_IMAGE', 'frost19k/puredns:latest')
+    threads = settings.get('PUREDNS_THREADS', 0)
+    rate_limit = settings.get('PUREDNS_RATE_LIMIT', 0)
+    wildcard_batch = settings.get('PUREDNS_WILDCARD_BATCH', 0)
+    skip_validation = settings.get('PUREDNS_SKIP_VALIDATION', False)
+
+    print(f"[*][Puredns] Validating {len(subdomains)} subdomains (wildcard filtering)...")
+
+    # Prepare temp files in /tmp/redamon (same path inside and outside container)
+    data_dir = Path("/tmp/redamon")
+    data_dir.mkdir(parents=True, exist_ok=True)
+    input_file = data_dir / f"puredns_input_{domain}.txt"
+    output_file = data_dir / f"puredns_output_{domain}.txt"
+    resolver_src = Path("/app/recon/data/resolvers.txt")
+    resolver_shared = data_dir / "resolvers.txt"
+
+    # Copy resolvers to shared volume (if not already there)
+    if resolver_src.exists() and not resolver_shared.exists():
+        shutil.copy2(resolver_src, resolver_shared)
+    elif not resolver_src.exists() and not resolver_shared.exists():
+        print(f"[!][Puredns] No resolver list found — skipping")
+        return subdomains
+
+    # Write input subdomain list
+    with open(input_file, 'w') as f:
+        f.write('\n'.join(subdomains))
+
+    command = [
+        'docker', 'run', '--rm',
+        '-v', f'{data_dir}:/data',
+        docker_image,
+        'resolve', f'/data/{input_file.name}',
+        '-r', '/data/resolvers.txt',
+        '--write', f'/data/{output_file.name}',
+        '-q',
+    ]
+
+    if threads > 0:
+        command.extend(['-t', str(threads)])
+    if rate_limit > 0:
+        command.extend(['--rate-limit', str(rate_limit)])
+    if wildcard_batch > 0:
+        command.extend(['--wildcard-batch', str(wildcard_batch)])
+    if skip_validation:
+        command.append('--skip-validation')
+
+    try:
+        result = subprocess.run(command, capture_output=True, text=True, timeout=600)
+
+        if output_file.exists():
+            with open(output_file, 'r') as f:
+                filtered = [line.strip() for line in f if line.strip()]
+            removed = len(subdomains) - len(filtered)
+            print(f"[+][Puredns] Validated: {len(filtered)} real, {removed} filtered (wildcards/poisoned)")
+            return filtered
+        else:
+            print(f"[!][Puredns] No output file produced — returning unfiltered list")
+            if result.stderr:
+                print(f"[!][Puredns] stderr: {result.stderr[:500]}")
+            return subdomains
+
+    except subprocess.TimeoutExpired:
+        print("[!][Puredns] Timed out (600s) — returning unfiltered list")
+        return subdomains
+    except FileNotFoundError:
+        print("[!][Puredns] Docker not found — cannot run")
+        return subdomains
+    except Exception as e:
+        print(f"[!][Puredns] Error: {e} — returning unfiltered list")
+        return subdomains
+    finally:
+        # Cleanup temp files (may be root-owned from Docker)
+        for tmp in [input_file, output_file]:
+            try:
+                tmp.unlink(missing_ok=True)
+            except PermissionError:
+                subprocess.run(
+                    ["docker", "run", "--rm", "-v", f"{data_dir}:/cleanup",
+                     "alpine", "rm", "-f", f"/cleanup/{tmp.name}"],
+                    capture_output=True
+                )
+
+
 def discover_subdomains(domain: str, anonymous: bool = False, bruteforce: bool = False,
                         resolve: bool = True, save_output: bool = True, project_id: str = None,
                         settings: dict = None) -> dict:
@@ -613,6 +717,12 @@ def discover_subdomains(domain: str, anonymous: bool = False, bruteforce: bool =
                 external_domain_entries.append({"domain": s, "source": source})
     all_subs = sorted(filtered_subs)
 
+    # Puredns wildcard filtering (after discovery fan-in, before DNS resolution)
+    pre_filter_count = len(all_subs)
+    all_subs = run_puredns_resolve(all_subs, domain, settings)
+    if len(all_subs) < pre_filter_count:
+        print(f"[+][Puredns] Wildcard filtering: {pre_filter_count} → {len(all_subs)} subdomains")
+
     # Build result structure
     result = {
         "metadata": {
@@ -632,7 +742,21 @@ def discover_subdomains(domain: str, anonymous: bool = False, bruteforce: bool =
     # DNS Resolution for domain + all subdomains
     if resolve:
         result["dns"] = resolve_all_dns(domain, all_subs)
-    
+
+    # Build subdomain status map from DNS results
+    subdomain_status_map = {}
+    if result["dns"]:
+        dns_subs = result["dns"].get("subdomains", {})
+        for s in all_subs:
+            info = result["dns"].get("domain", {}) if s == domain else dns_subs.get(s, {})
+            if info.get("has_records", False):
+                subdomain_status_map[s] = "resolved"
+    else:
+        # DNS step was skipped (resolve=False) — assume all are resolved
+        for s in all_subs:
+            subdomain_status_map[s] = "resolved"
+    result["subdomain_status_map"] = subdomain_status_map
+
     # Save JSON output (use project_id for filename if provided, fallback to domain)
     if save_output:
         OUTPUT_DIR.mkdir(parents=True, exist_ok=True)

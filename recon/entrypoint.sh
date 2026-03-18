@@ -110,6 +110,20 @@ mkdir -p /app/recon/data/wappalyzer
 echo -e "${GREEN}[+] Directories ready${NC}"
 
 # =============================================================================
+# Download DNS resolvers for puredns (refresh every 7 days)
+# =============================================================================
+RESOLVER_FILE="/app/recon/data/resolvers.txt"
+if [ ! -f "$RESOLVER_FILE" ] || [ $(find "$RESOLVER_FILE" -mtime +7 2>/dev/null | wc -l) -gt 0 ]; then
+    echo -e "${YELLOW}[*][Puredns] Downloading fresh DNS resolvers...${NC}"
+    curl -sL https://raw.githubusercontent.com/trickest/resolvers/main/resolvers.txt \
+        -o "$RESOLVER_FILE" 2>/dev/null && \
+        echo -e "${GREEN}[+][Puredns] Resolvers downloaded ($(wc -l < "$RESOLVER_FILE") entries)${NC}" || \
+        echo -e "${RED}[!][Puredns] Failed to download resolvers${NC}"
+else
+    echo -e "${GREEN}[✓][Puredns] DNS resolvers up to date${NC}"
+fi
+
+# =============================================================================
 # Pull required Docker images (ProjectDiscovery tools)
 # =============================================================================
 echo -e "${YELLOW}[*] Checking ProjectDiscovery Docker images...${NC}"
@@ -123,6 +137,7 @@ IMAGES=(
     "projectdiscovery/subfinder:latest"
     "sxcurity/gau:latest"
     "caffix/amass:latest"
+    "frost19k/puredns:latest"
 )
 
 for IMAGE in "${IMAGES[@]}"; do

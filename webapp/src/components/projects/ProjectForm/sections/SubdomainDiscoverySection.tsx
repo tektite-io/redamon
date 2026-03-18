@@ -240,6 +240,50 @@ export function SubdomainDiscoverySection({ data, updateField }: SubdomainDiscov
           </div>
 
           <div className={styles.subSection}>
+            <h3 className={styles.subSectionTitle}>Wildcard Filtering <span className={styles.badgeActive}>Active</span></h3>
+
+            <div className={styles.toggleRow}>
+              <div>
+                <span className={styles.toggleLabel}>Puredns Wildcard Filtering</span>
+                <p className={styles.toggleDescription}>
+                  Validates discovered subdomains against public DNS resolvers and removes wildcard
+                  entries and DNS-poisoned results &mdash; runs after all discovery tools complete
+                </p>
+              </div>
+              <Toggle
+                checked={data.purednsEnabled}
+                onChange={(checked) => updateField('purednsEnabled', checked)}
+              />
+            </div>
+
+            {data.purednsEnabled && (
+              <div className={styles.fieldRow}>
+                <div className={styles.fieldGroup}>
+                  <label className={styles.fieldLabel}>Threads (0 = auto)</label>
+                  <input
+                    type="number"
+                    className="textInput"
+                    value={data.purednsThreads}
+                    onChange={(e) => updateField('purednsThreads', parseInt(e.target.value) || 0)}
+                    min={0}
+                    max={1000}
+                  />
+                </div>
+                <div className={styles.fieldGroup}>
+                  <label className={styles.fieldLabel}>Rate Limit (0 = unlimited)</label>
+                  <input
+                    type="number"
+                    className="textInput"
+                    value={data.purednsRateLimit}
+                    onChange={(e) => updateField('purednsRateLimit', parseInt(e.target.value) || 0)}
+                    min={0}
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className={styles.subSection}>
             <h3 className={styles.subSectionTitle}>DNS &amp; WHOIS <span className={styles.badgePassive}>Passive</span></h3>
 
             <div className={styles.toggleRowCompact}>

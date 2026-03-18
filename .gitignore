@@ -91,6 +91,9 @@ dmypy.json
 # Pyre type checker
 .pyre/
 
+# Recon data files (downloaded at runtime)
+recon/data/resolvers.txt
+
 # Recon output files (contain sensitive scan data)
 recon/output/*.json
 gvm_scan/output/*.json

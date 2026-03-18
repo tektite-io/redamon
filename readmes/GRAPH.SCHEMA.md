@@ -163,9 +163,18 @@ Discovered subdomains/hostnames under a domain.
 (:Subdomain {
     name: "testphp.vulnweb.com",           // Full hostname (UNIQUE per tenant)
     has_dns_records: true,
+    status: "200",                          // Primary HTTP status code as string, or "resolved"/"no_http"
+    status_codes: [200, 301],               // All unique HTTP status codes seen (set after HTTP probe)
+    http_live_url_count: 3,                 // Count of URLs with status < 500
+    http_probed_at: datetime,               // When last HTTP-probed
     discovered_at: datetime
 })
 ```
+
+**Status values:**
+- `resolved` — Has DNS records, not yet HTTP-probed
+- `no_http` — DNS resolves but no HTTP service responded
+- `"200"`, `"301"`, `"403"`, `"404"`, `"500"`, etc. — Primary HTTP status code (lowest non-5xx, or lowest overall)
 
 **Constraints:**
 ```cypher
@@ -1344,6 +1353,9 @@ FOR (d:Domain) ON (d.user_id, d.project_id);
 
 CREATE INDEX idx_subdomain_tenant IF NOT EXISTS
 FOR (s:Subdomain) ON (s.user_id, s.project_id);
+
+CREATE INDEX idx_subdomain_status IF NOT EXISTS
+FOR (s:Subdomain) ON (s.status);
 
 CREATE INDEX idx_ip_tenant IF NOT EXISTS
 FOR (i:IP) ON (i.user_id, i.project_id);

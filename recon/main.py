@@ -642,21 +642,12 @@ def run_domain_recon(target: str, anonymous: bool = False, bruteforce: bool = Fa
     root_domain = target_info["root_domain"]
     full_subdomains = target_info["full_subdomains"]
 
-    print("\n" + "=" * 70)
-    print("               RedAmon - Domain Reconnaissance")
-    print("=" * 70)
-    print(f"  [*][Pipeline] Target: {root_domain}")
+    print(f"[*][Pipeline] Target: {root_domain}")
     if filtered_mode:
-        print(f"  [*][Pipeline] Mode: FILTERED SUBDOMAIN SCAN")
-        print(f"  [*][Pipeline] Subdomains: {', '.join(full_subdomains)}")
+        print(f"[*][Pipeline] Mode: FILTERED SUBDOMAIN SCAN")
+        print(f"[*][Pipeline] Subdomains: {', '.join(full_subdomains)}")
     else:
-        print(f"  [*][Pipeline] Mode: FULL DISCOVERY (all subdomains)")
-    print(f"  [*][Pipeline] Anonymous Mode: {anonymous}")
-    if not filtered_mode:
-        print(f"  [*][Pipeline] Bruteforce Mode: {bruteforce}")
-    print(f"  [*][Pipeline] WHOIS Retries: {_settings.get('WHOIS_RETRIES', 2)}")
-    print(f"  [*][Pipeline] DNS Retries: {_settings.get('DNS_RETRIES', 2)}")
-    print("=" * 70 + "\n")
+        print(f"[*][Pipeline] Mode: FULL DISCOVERY (all subdomains)")
 
     # Setup output file and background graph executor
     _graph_reset()
@@ -806,6 +797,10 @@ def run_domain_recon(target: str, anonymous: bool = False, bruteforce: bool = Fa
             if recon_result.get("external_domains"):
                 combined_result["domain_discovery_external_domains"] = recon_result["external_domains"]
             combined_result["dns"] = recon_result.get("dns", {})
+            # Pass subdomain status map (filtered to match ROE-filtered subdomains)
+            status_map = recon_result.get("subdomain_status_map", {})
+            status_map = {s: st for s, st in status_map.items() if s in set(discovered_subs)}
+            combined_result["subdomain_status_map"] = status_map
             combined_result["metadata"]["include_root_domain"] = include_root
             combined_result["metadata"]["modules_executed"].append("dns_resolution")
             print(f"[+][Discovery] Merged: {len(discovered_subs)} subdomains")

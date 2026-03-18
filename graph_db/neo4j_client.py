@@ -359,6 +359,7 @@ class Neo4jClient:
         # Additional indexes
         additional_indexes = [
             "CREATE INDEX subdomain_name IF NOT EXISTS FOR (s:Subdomain) ON (s.name)",
+            "CREATE INDEX idx_subdomain_status IF NOT EXISTS FOR (s:Subdomain) ON (s.status)",
             "CREATE INDEX ip_address IF NOT EXISTS FOR (i:IP) ON (i.address)",
             "CREATE INDEX idx_service_tenant IF NOT EXISTS FOR (svc:Service) ON (svc.user_id, svc.project_id)",
             "CREATE INDEX tech_name IF NOT EXISTS FOR (t:Technology) ON (t.name)",
@@ -718,6 +719,7 @@ class Neo4jClient:
             # 2. Create Subdomain nodes and relationships
             subdomain_dns = dns_data.get("subdomains", {})
             domain_dns = dns_data.get("domain", {})  # DNS data for root domain
+            subdomain_status_map = recon_data.get("subdomain_status_map", {})
 
             for subdomain in subdomains:
                 try:
@@ -729,15 +731,17 @@ class Neo4jClient:
                     has_records = subdomain_info.get("has_records", False)
 
                     # Create Subdomain node
+                    status = subdomain_status_map.get(subdomain)  # None for unresolved subs
                     session.run(
                         """
                         MERGE (s:Subdomain {name: $name, user_id: $user_id, project_id: $project_id})
                         SET s.has_dns_records = $has_records,
-                            s.discovered_at = datetime(),
+                            s.status = coalesce(s.status, $status),
+                            s.discovered_at = coalesce(s.discovered_at, datetime()),
                             s.updated_at = datetime()
                         """,
                         name=subdomain, user_id=user_id, project_id=project_id,
-                        has_records=has_records
+                        has_records=has_records, status=status
                     )
                     stats["subdomains_created"] += 1
 
@@ -926,7 +930,11 @@ class Neo4jClient:
                     session.run(
                         """
                         MERGE (s:Subdomain {name: $name, user_id: $user_id, project_id: $project_id})
-                        SET s += $props
+                        ON CREATE SET s += $props, s.status = 'resolved'
+                        ON MATCH SET s += $props
+                        WITH s
+                        WHERE s.status IS NULL
+                        SET s.status = 'resolved'
                         """,
                         name=subdomain_name, user_id=user_id, project_id=project_id, props=sub_props
                     )
@@ -1213,6 +1221,7 @@ class Neo4jClient:
             "technologies_created": 0,
             "headers_created": 0,
             "relationships_created": 0,
+            "subdomains_updated": 0,
             "errors": []
         }
 
@@ -1642,11 +1651,62 @@ class Neo4jClient:
                 except Exception as e:
                     stats["errors"].append(f"Domain update failed: {e}")
 
+            # --- Update Subdomain nodes with HTTP probe status ---
+            by_host = http_probe_data.get("by_host", {})
+            for hostname, host_info in by_host.items():
+                try:
+                    status_codes = host_info.get("status_codes", [])  # already sorted int list
+                    live_urls = host_info.get("live_urls", [])
+
+                    # Determine status as the primary HTTP status code (string)
+                    # Priority: lowest non-5xx code, then lowest overall
+                    if status_codes:
+                        non_error = [c for c in status_codes if c < 500]
+                        primary = min(non_error) if non_error else min(status_codes)
+                        http_status = str(primary)
+                    else:
+                        http_status = "no_http"
+
+                    session.run(
+                        """
+                        MATCH (s:Subdomain {name: $hostname, user_id: $user_id, project_id: $project_id})
+                        SET s.status = $status,
+                            s.status_codes = $status_codes,
+                            s.http_live_url_count = $live_count,
+                            s.http_probed_at = datetime(),
+                            s.updated_at = datetime()
+                        """,
+                        hostname=hostname, user_id=user_id, project_id=project_id,
+                        status=http_status, status_codes=status_codes,
+                        live_count=len(live_urls)
+                    )
+                    stats["subdomains_updated"] += 1
+                except Exception as e:
+                    stats["errors"].append(f"Subdomain status update for {hostname}: {e}")
+
+            # Mark resolved subdomains that got no HTTP response at all as "no_http"
+            all_probed_hosts = set(by_host.keys())
+            all_target_subs = set(recon_data.get("subdomains", []))
+            no_response_hosts = all_target_subs - all_probed_hosts
+            if no_response_hosts:
+                session.run(
+                    """
+                    UNWIND $hosts AS hostname
+                    MATCH (s:Subdomain {name: hostname, user_id: $user_id, project_id: $project_id})
+                    WHERE s.status = 'resolved'
+                    SET s.status = 'no_http',
+                        s.http_probed_at = datetime(),
+                        s.updated_at = datetime()
+                    """,
+                    hosts=list(no_response_hosts), user_id=user_id, project_id=project_id
+                )
+
             print(f"[+][graph-db] Created {stats['baseurls_created']} BaseURL nodes")
             print(f"[+][graph-db] Created/Updated {stats['services_created']} Service nodes")
             print(f"[+][graph-db] Created {stats['technologies_created']} Technology nodes")
             print(f"[+][graph-db] Created {stats['headers_created']} Header nodes")
             print(f"[+][graph-db] Created {stats['relationships_created']} relationships")
+            print(f"[+][graph-db] Updated {stats['subdomains_updated']} Subdomain statuses")
 
             if stats["errors"]:
                 print(f"[!][graph-db] {len(stats['errors'])} errors occurred")
@@ -4424,8 +4484,8 @@ class Neo4jClient:
                             session.run(
                                 """
                                 MERGE (s:Subdomain {name: $name, user_id: $user_id, project_id: $project_id})
-                                ON CREATE SET s.source = 'shodan_rdns', s.discovered_at = datetime(),
-                                              s.updated_at = datetime()
+                                ON CREATE SET s.source = 'shodan_rdns', s.status = 'resolved',
+                                              s.discovered_at = datetime(), s.updated_at = datetime()
                                 MERGE (i:IP {address: $ip, user_id: $user_id, project_id: $project_id})
                                 MERGE (s)-[:RESOLVES_TO {record_type: 'A', timestamp: datetime()}]->(i)
                                 """,
@@ -4482,8 +4542,8 @@ class Neo4jClient:
                         session.run(
                             """
                             MERGE (s:Subdomain {name: $name, user_id: $user_id, project_id: $project_id})
-                            ON CREATE SET s.source = 'shodan_dns', s.discovered_at = datetime(),
-                                          s.updated_at = datetime()
+                            ON CREATE SET s.source = 'shodan_dns', s.status = 'resolved',
+                                          s.discovered_at = datetime(), s.updated_at = datetime()
                             """,
                             name=fqdn, user_id=user_id, project_id=project_id
                         )
@@ -4673,7 +4733,8 @@ class Neo4jClient:
                                 """
                                 MERGE (d:Domain {name: $domain, user_id: $uid, project_id: $pid})
                                 MERGE (s:Subdomain {name: $subdomain, user_id: $uid, project_id: $pid})
-                                ON CREATE SET s.discovered_by = 'urlscan', s.updated_at = datetime()
+                                ON CREATE SET s.discovered_by = 'urlscan', s.status = 'resolved',
+                                              s.updated_at = datetime()
                                 MERGE (d)-[:HAS_SUBDOMAIN]->(s)
                                 """,
                                 domain=domain, subdomain=subdomain,

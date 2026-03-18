@@ -31,6 +31,7 @@ SUB_CONTAINER_IMAGES = [
     "projectdiscovery/katana",
     "projectdiscovery/nuclei",
     "sxcurity/gau",
+    "frost19k/puredns",
 ]
 
 # Phase patterns to detect from logs
