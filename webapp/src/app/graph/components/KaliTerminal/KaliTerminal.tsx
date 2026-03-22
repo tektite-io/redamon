@@ -2,11 +2,20 @@
 
 import { useEffect, useRef, useState, useCallback, memo } from 'react'
 import { Terminal as TerminalIcon, Wifi, WifiOff, RefreshCw, Maximize2, Minimize2 } from 'lucide-react'
+import type { Terminal } from '@xterm/xterm'
+import type { FitAddon } from '@xterm/addon-fit'
 import styles from './KaliTerminal.module.css'
 
 type ConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'error'
 
+const MAX_RECONNECT_ATTEMPTS = 5
+const BASE_RECONNECT_INTERVAL = 2000
+const PING_INTERVAL_MS = 30000
+
 function getWsUrl(): string {
+  if (process.env.NEXT_PUBLIC_AGENT_WS_URL) {
+    return process.env.NEXT_PUBLIC_AGENT_WS_URL.replace(/\/ws\/agent$/, '/ws/kali-terminal')
+  }
   if (typeof window !== 'undefined') {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
     const host = window.location.hostname
@@ -18,36 +27,47 @@ function getWsUrl(): string {
 export const KaliTerminal = memo(function KaliTerminal() {
   const termRef = useRef<HTMLDivElement>(null)
   const wsRef = useRef<WebSocket | null>(null)
-  const terminalRef = useRef<any>(null)
-  const fitAddonRef = useRef<any>(null)
+  const terminalRef = useRef<Terminal | null>(null)
+  const fitAddonRef = useRef<FitAddon | null>(null)
   const [status, setStatus] = useState<ConnectionStatus>('disconnected')
   const [isFullscreen, setIsFullscreen] = useState(false)
   const reconnectTimerRef = useRef<NodeJS.Timeout | null>(null)
+  const pingIntervalRef = useRef<NodeJS.Timeout | null>(null)
   const inputDisposablesRef = useRef<Array<{ dispose: () => void }>>([])
   const mountedRef = useRef(true)
   const initializedRef = useRef(false)
+  const reconnectAttemptRef = useRef(0)
 
   const connect = useCallback(async () => {
     if (!termRef.current || !mountedRef.current) return
-    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) return
+    if (wsRef.current && (wsRef.current.readyState === WebSocket.OPEN || wsRef.current.readyState === WebSocket.CONNECTING)) return
 
     setStatus('connecting')
 
     // Dynamically import xterm to avoid SSR issues
-    const [{ Terminal }, { FitAddon }, { WebLinksAddon }] = await Promise.all([
-      import('@xterm/xterm'),
-      import('@xterm/addon-fit'),
-      import('@xterm/addon-web-links'),
-    ])
+    let TerminalCtor, FitAddonCtor, WebLinksAddonCtor
+    try {
+      const [termMod, fitMod, linksMod] = await Promise.all([
+        import('@xterm/xterm'),
+        import('@xterm/addon-fit'),
+        import('@xterm/addon-web-links'),
+      ])
+      TerminalCtor = termMod.Terminal
+      FitAddonCtor = fitMod.FitAddon
+      WebLinksAddonCtor = linksMod.WebLinksAddon
+    } catch {
+      setStatus('error')
+      return
+    }
 
     if (!mountedRef.current) return
 
     // Only create terminal once
     if (!terminalRef.current) {
-      const fitAddon = new FitAddon()
+      const fitAddon = new FitAddonCtor()
       fitAddonRef.current = fitAddon
 
-      const terminal = new Terminal({
+      const terminal = new TerminalCtor({
         cursorBlink: true,
         cursorStyle: 'block',
         fontSize: 13,
@@ -83,7 +103,7 @@ export const KaliTerminal = memo(function KaliTerminal() {
       })
 
       terminal.loadAddon(fitAddon)
-      terminal.loadAddon(new WebLinksAddon())
+      terminal.loadAddon(new WebLinksAddonCtor())
 
       if (termRef.current) {
         terminal.open(termRef.current)
@@ -95,21 +115,21 @@ export const KaliTerminal = memo(function KaliTerminal() {
       terminalRef.current.clear()
     }
 
-    const terminal = terminalRef.current
+    const terminal = terminalRef.current!
     const fitAddon = fitAddonRef.current
 
     terminal.writeln('')
-    terminal.writeln('\x1b[1;31m  ____           _    _                        \x1b[0m')
+    terminal.writeln('\x1b[1;31m  ____          _    _                       \x1b[0m')
     terminal.writeln('\x1b[1;31m |  _ \\ ___  __| |  / \\   _ __ ___   ___  _ __\x1b[0m')
     terminal.writeln('\x1b[1;31m | |_) / _ \\/ _` | / _ \\ | \'_ ` _ \\ / _ \\| \'_ \\\x1b[0m')
     terminal.writeln('\x1b[1;31m |  _ <  __/ (_| |/ ___ \\| | | | | | (_) | | | |\x1b[0m')
     terminal.writeln('\x1b[1;31m |_| \\_\\___|\\__,_/_/   \\_\\_| |_| |_|\\___/|_| |_|\x1b[0m')
     terminal.writeln('')
-    terminal.writeln('\x1b[1;36m  ┌──────────────────────────────────────────────┐\x1b[0m')
-    terminal.writeln('\x1b[1;36m  │\x1b[0m  \x1b[1;33m⚡ Kali Sandbox Terminal\x1b[0m                      \x1b[1;36m│\x1b[0m')
-    terminal.writeln('\x1b[1;36m  │\x1b[0m  \x1b[2;37mFull access to Kali Linux pentesting tools\x1b[0m   \x1b[1;36m│\x1b[0m')
-    terminal.writeln('\x1b[1;36m  │\x1b[0m  \x1b[2;37mmetasploit • nmap • nuclei • hydra • sqlmap\x1b[0m  \x1b[1;36m│\x1b[0m')
-    terminal.writeln('\x1b[1;36m  └──────────────────────────────────────────────┘\x1b[0m')
+    terminal.writeln('\x1b[1;36m  \u250c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2510\x1b[0m')
+    terminal.writeln('\x1b[1;36m  \u2502\x1b[0m  \x1b[1;33m\u26a1 Kali Sandbox Terminal\x1b[0m                     \x1b[1;36m\u2502\x1b[0m')
+    terminal.writeln('\x1b[1;36m  \u2502\x1b[0m  \x1b[2;37mFull access to Kali Linux pentesting tools\x1b[0m  \x1b[1;36m\u2502\x1b[0m')
+    terminal.writeln('\x1b[1;36m  \u2502\x1b[0m  \x1b[2;37mmetasploit \u2022 nmap \u2022 nuclei \u2022 hydra \u2022 sqlmap\x1b[0m \x1b[1;36m\u2502\x1b[0m')
+    terminal.writeln('\x1b[1;36m  \u2514\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2518\x1b[0m')
     terminal.writeln('')
     terminal.writeln('\x1b[2;37m  Connecting to kali-sandbox...\x1b[0m')
 
@@ -125,7 +145,8 @@ export const KaliTerminal = memo(function KaliTerminal() {
         return
       }
       setStatus('connected')
-      terminal.writeln('\x1b[1;32m✓ Connected\x1b[0m\n')
+      reconnectAttemptRef.current = 0
+      terminal.writeln('\x1b[1;32m\u2713 Connected\x1b[0m\n')
 
       // Send terminal size
       if (fitAddon) {
@@ -156,6 +177,14 @@ export const KaliTerminal = memo(function KaliTerminal() {
           }
         })
       )
+
+      // Start keepalive ping
+      if (pingIntervalRef.current) clearInterval(pingIntervalRef.current)
+      pingIntervalRef.current = setInterval(() => {
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: 'ping' }))
+        }
+      }, PING_INTERVAL_MS)
     }
 
     ws.onmessage = (event) => {
@@ -169,13 +198,31 @@ export const KaliTerminal = memo(function KaliTerminal() {
     ws.onerror = () => {
       if (!mountedRef.current) return
       setStatus('error')
+      terminal.writeln('\n\x1b[1;31mWebSocket connection failed. Is the kali-sandbox running?\x1b[0m')
     }
 
     ws.onclose = () => {
       if (!mountedRef.current) return
+
+      // Clear keepalive
+      if (pingIntervalRef.current) {
+        clearInterval(pingIntervalRef.current)
+        pingIntervalRef.current = null
+      }
+
       setStatus('disconnected')
-      terminal.writeln('\n\x1b[1;31m✗ Disconnected from kali-sandbox\x1b[0m')
-      terminal.writeln('\x1b[2;37mClick "Reconnect" to establish a new session\x1b[0m')
+      terminal.writeln('\n\x1b[1;31m\u2717 Disconnected from kali-sandbox\x1b[0m')
+
+      // Auto-reconnect with exponential backoff
+      const attempt = reconnectAttemptRef.current
+      if (attempt < MAX_RECONNECT_ATTEMPTS) {
+        const delay = BASE_RECONNECT_INTERVAL * Math.pow(2, attempt)
+        terminal.writeln(`\x1b[2;37m  Reconnecting in ${(delay / 1000).toFixed(0)}s (attempt ${attempt + 1}/${MAX_RECONNECT_ATTEMPTS})...\x1b[0m`)
+        reconnectAttemptRef.current = attempt + 1
+        reconnectTimerRef.current = setTimeout(() => connect(), delay)
+      } else {
+        terminal.writeln('\x1b[2;37m  Max reconnect attempts reached. Click "Reconnect" to try again.\x1b[0m')
+      }
     }
   }, [])
 
@@ -183,6 +230,10 @@ export const KaliTerminal = memo(function KaliTerminal() {
     if (reconnectTimerRef.current) {
       clearTimeout(reconnectTimerRef.current)
       reconnectTimerRef.current = null
+    }
+    if (pingIntervalRef.current) {
+      clearInterval(pingIntervalRef.current)
+      pingIntervalRef.current = null
     }
     if (wsRef.current) {
       wsRef.current.close()
@@ -192,8 +243,9 @@ export const KaliTerminal = memo(function KaliTerminal() {
   }, [])
 
   const reconnect = useCallback(() => {
+    reconnectAttemptRef.current = 0
     disconnect()
-    setTimeout(() => connect(), 200)
+    reconnectTimerRef.current = setTimeout(() => connect(), 200)
   }, [disconnect, connect])
 
   const toggleFullscreen = useCallback(() => {
@@ -270,6 +322,14 @@ export const KaliTerminal = memo(function KaliTerminal() {
   useEffect(() => {
     return () => {
       mountedRef.current = false
+      if (reconnectTimerRef.current) {
+        clearTimeout(reconnectTimerRef.current)
+        reconnectTimerRef.current = null
+      }
+      if (pingIntervalRef.current) {
+        clearInterval(pingIntervalRef.current)
+        pingIntervalRef.current = null
+      }
       inputDisposablesRef.current.forEach(d => d.dispose())
       inputDisposablesRef.current = []
       if (wsRef.current) {
@@ -292,7 +352,7 @@ export const KaliTerminal = memo(function KaliTerminal() {
           <span className={styles.subtitle}>kali-sandbox</span>
         </div>
         <div className={styles.toolbarRight}>
-          <span className={`${styles.statusBadge} ${styles[status]}`}>
+          <span className={`${styles.statusBadge} ${styles[status]}`} aria-live="polite">
             {status === 'connected' ? (
               <Wifi size={10} />
             ) : (
@@ -304,6 +364,8 @@ export const KaliTerminal = memo(function KaliTerminal() {
             className={styles.toolbarBtn}
             onClick={reconnect}
             title="Reconnect"
+            disabled={status === 'connecting'}
+            aria-label="Reconnect to terminal"
           >
             <RefreshCw size={12} />
           </button>
@@ -311,12 +373,14 @@ export const KaliTerminal = memo(function KaliTerminal() {
             className={styles.toolbarBtn}
             onClick={toggleFullscreen}
             title={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
+            aria-label={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
+            aria-pressed={isFullscreen}
           >
             {isFullscreen ? <Minimize2 size={12} /> : <Maximize2 size={12} />}
           </button>
         </div>
       </div>
-      <div ref={termRef} className={styles.terminal} />
+      <div ref={termRef} className={styles.terminal} role="application" aria-label="Kali Linux terminal" />
     </div>
   )
 })

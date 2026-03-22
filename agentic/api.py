@@ -19,6 +19,7 @@ from contextlib import asynccontextmanager
 from typing import Optional
 
 import httpx
+import websockets
 from fastapi import FastAPI, Query, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response, JSONResponse
@@ -854,8 +855,6 @@ async def kali_terminal_proxy(websocket: WebSocket):
     await websocket.accept()
 
     try:
-        import websockets
-
         async with websockets.connect(
             _KALI_TERMINAL_WS_URL,
             ping_interval=30,
@@ -871,8 +870,8 @@ async def kali_terminal_proxy(websocket: WebSocket):
                             await kali_ws.send(data["text"])
                         elif "bytes" in data:
                             await kali_ws.send(data["bytes"])
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.debug("Browser→Kali stream ended: %s", e)
 
             async def kali_to_browser():
                 try:
@@ -881,19 +880,22 @@ async def kali_terminal_proxy(websocket: WebSocket):
                             await websocket.send_bytes(message)
                         else:
                             await websocket.send_text(message)
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.debug("Kali→Browser stream ended: %s", e)
 
             upstream = asyncio.create_task(browser_to_kali())
             downstream = asyncio.create_task(kali_to_browser())
-            await asyncio.wait(
-                [upstream, downstream], return_when=asyncio.FIRST_COMPLETED
-            )
-            upstream.cancel()
-            downstream.cancel()
+            try:
+                await asyncio.wait(
+                    [upstream, downstream], return_when=asyncio.FIRST_COMPLETED
+                )
+            finally:
+                upstream.cancel()
+                downstream.cancel()
+                await asyncio.gather(upstream, downstream, return_exceptions=True)
 
     except Exception as e:
-        logger.error(f"Kali terminal proxy error: {e}")
+        logger.error("Kali terminal proxy error: %s", e)
     finally:
         try:
             await websocket.close()

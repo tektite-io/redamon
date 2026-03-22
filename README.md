@@ -274,7 +274,7 @@ The platform is built around six pillars:
 
 ### Reconnaissance Pipeline
 
-A fully automated, **parallelized** scanning engine running inside a Kali Linux container. Given a root domain, subdomain list, or IP/CIDR ranges, it maps the complete external attack surface using a **fan-out / fan-in** pipeline architecture: subdomain discovery (crt.sh, HackerTarget, Subfinder, Amass, Knockpy — all 5 tools run concurrently), **puredns wildcard filtering** (validates subdomains against public DNS resolvers and removes wildcard/poisoned entries), parallel DNS resolution (20 workers), Shodan + port scanning (Naabu) in parallel, HTTP probing with technology fingerprinting (httpx + Wappalyzer), resource enumeration (Katana, Hakrawler, GAU, Kiterunner — internally parallel, followed by jsluice JavaScript analysis), and vulnerability scanning (Nuclei with 9,000+ templates + DAST fuzzing). Neo4j graph updates run in a dedicated background thread so the main pipeline is never blocked. Results are stored as JSON and imported into the Neo4j graph.
+A fully automated, **parallelized** scanning engine running inside a Kali Linux container. Given a root domain, subdomain list, or IP/CIDR ranges, it maps the complete external attack surface using a **fan-out / fan-in** pipeline architecture: subdomain discovery (crt.sh, HackerTarget, Subfinder, Amass, Knockpy — all 5 tools run concurrently), **puredns wildcard filtering** (validates subdomains against public DNS resolvers and removes wildcard/poisoned entries), parallel DNS resolution (20 workers), Shodan + port scanning (Naabu) in parallel, HTTP probing with technology fingerprinting (httpx + Wappalyzer), resource enumeration (Katana, Hakrawler, GAU, Kiterunner — internally parallel, followed by jsluice JavaScript analysis and FFuf directory fuzzing with custom wordlist support), and vulnerability scanning (Nuclei with 9,000+ templates + DAST fuzzing). Neo4j graph updates run in a dedicated background thread so the main pipeline is never blocked. Results are stored as JSON and imported into the Neo4j graph.
 
 > **[Wiki: Running Reconnaissance](https://github.com/samugit83/redamon/wiki/Running-Reconnaissance)** | **[Technical: README.RECON.md](readmes/README.RECON.md)**
 
@@ -322,11 +322,17 @@ Launch **multiple concurrent agent sessions** against the same project. Each ses
 
 > **[Wiki: AI Agent Guide](https://github.com/samugit83/redamon/wiki/AI-Agent-Guide)**
 
-### Remote Shells
+### Reverse Shells
 
 Unified view of active sessions — meterpreter, reverse/bind shells, and listeners. Built-in terminal with a **Command Whisperer** that translates plain English into shell commands.
 
-> **[Wiki: Remote Shells](https://github.com/samugit83/redamon/wiki/Remote-Shells)**
+> **[Wiki: Reverse Shells](https://github.com/samugit83/redamon/wiki/Reverse-Shells)**
+
+### RedAmon Terminal
+
+Full interactive **PTY shell access** to the Kali sandbox container directly from the graph page via **xterm.js**. Access all pre-installed pentesting tools (Metasploit, Nmap, Nuclei, Hydra, sqlmap) without leaving the browser. Features dark terminal theme, connection status indicator, auto-reconnect with exponential backoff, fullscreen mode, and browser-side keepalive.
+
+> **[Wiki: The Graph Dashboard](https://github.com/samugit83/redamon/wiki/The-Graph-Dashboard#redamon-terminal)**
 
 ### CypherFix — Automated Vulnerability Remediation
 

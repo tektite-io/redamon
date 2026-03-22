@@ -30,9 +30,9 @@
 
 ## Overview
 
-The `resource_enum.py` module provides comprehensive endpoint discovery and classification for web applications. It combines **active crawling** (Katana + Hakrawler), **passive historical URL discovery** (GAU), **API bruteforcing** (Kiterunner), and **JavaScript analysis** (jsluice) to maximize endpoint coverage, extracts parameters, parses HTML forms, discovers embedded secrets, and organizes everything into a structured format ready for vulnerability scanning.
+The `resource_enum.py` module provides comprehensive endpoint discovery and classification for web applications. It combines **active crawling** (Katana + Hakrawler), **passive historical URL discovery** (GAU), **API bruteforcing** (Kiterunner), **JavaScript analysis** (jsluice), and **directory fuzzing** (FFuf) to maximize endpoint coverage, extracts parameters, parses HTML forms, discovers embedded secrets, and organizes everything into a structured format ready for vulnerability scanning.
 
-**Pipeline Position:** GROUP 5 in the parallelized pipeline (`GROUP 4: http_probe -> GROUP 5: resource_enum -> GROUP 6: vuln_scan`). Katana, Hakrawler, GAU, and Kiterunner run concurrently via internal `ThreadPoolExecutor`. jsluice runs sequentially after crawling to analyze discovered JavaScript files.
+**Pipeline Position:** GROUP 5 in the parallelized pipeline (`GROUP 4: http_probe -> GROUP 5: resource_enum -> GROUP 6: vuln_scan`). Katana, Hakrawler, GAU, and Kiterunner run concurrently via internal `ThreadPoolExecutor`. jsluice runs sequentially after crawling to analyze discovered JavaScript files. FFuf runs after jsluice to brute-force directory paths using wordlists.
 
 ### Why Resource Enumeration?
 
@@ -84,7 +84,8 @@ The `resource_enum.py` module provides comprehensive endpoint discovery and clas
 | **Kiterunner API Bruteforce** | Hidden API discovery using 40k+ Swagger/OpenAPI specifications |
 | **Hakrawler Crawling** | DOM-aware web crawling via Docker (active) |
 | **jsluice JS Analysis** | Passive JavaScript analysis to extract URLs, endpoints, and secrets |
-| **Parallel Execution** | Katana, Hakrawler, GAU, and Kiterunner run simultaneously for faster results |
+| **FFuf Directory Fuzzing** | Brute-force directory/endpoint discovery using wordlists (built-in SecLists + custom uploads) |
+| **Parallel Execution** | Katana, Hakrawler, GAU, and Kiterunner run simultaneously, then jsluice → FFuf sequential |
 | **URL Verification** | Verifies GAU URLs are live before adding to results |
 | **Method Detection** | OPTIONS probe detects allowed HTTP methods (GET, POST, PUT, DELETE) |
 | **Dead Endpoint Filtering** | Filters out endpoints that don't respond (404, 500, timeout) |

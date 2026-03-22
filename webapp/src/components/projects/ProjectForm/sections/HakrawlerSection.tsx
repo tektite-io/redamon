@@ -16,7 +16,7 @@ interface HakrawlerSectionProps {
 }
 
 export function HakrawlerSection({ data, updateField }: HakrawlerSectionProps) {
-  const [isOpen, setIsOpen] = useState(true)
+  const [isOpen, setIsOpen] = useState(false)
 
   return (
     <div className={styles.section}>

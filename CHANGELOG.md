@@ -14,6 +14,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **FFuf Directory Fuzzer** — brute-force directory/endpoint discovery using wordlists, complementing crawlers (Katana, Hakrawler, GAU) by finding hidden content (admin panels, backup files, configs, undocumented APIs). Runs in Phase 4 (Resource Enumeration) after jsluice and before Kiterunner. Disabled by default; stealth mode disables it; RoE caps rate. Full stack integration:
+  - **Backend**: `ffuf_helpers.py` with `run_ffuf_discovery()`, JSON output parsing, scope filtering, deduplication, and smart fuzzing under crawler-discovered base paths
+  - **Dockerfile**: multi-stage Go 1.22 build compiles FFuf from source, installs 3 SecLists wordlists (`common.txt`, `raft-medium-directories.txt`, `directory-list-2.3-small.txt`)
+  - **Settings**: 16 user-configurable `FFUF_*` settings (threads, rate, timeout, wordlist, match/filter codes, extensions, recursion, auto-calibrate, smart fuzz, custom headers)
+  - **Frontend**: `FfufSection.tsx` with full settings UI, wordlist dropdown (built-in SecLists + custom uploads), custom wordlist upload/delete via API
+  - **Custom wordlists**: upload `.txt` wordlists per-project via `/api/projects/[id]/wordlists` (GET/POST/DELETE), shared between webapp and recon containers via Docker volume mount
+  - **Validation**: frontend form validation for FFuf status codes (100-599), header format, numeric ranges, extensions format, recursion depth (1-5)
+  - **Tests**: 43 unit tests covering helpers, settings, stealth/RoE overrides, sanitization, and CRUD operations
+
+- **RedAmon Terminal** — interactive PTY shell access to the kali-sandbox container directly from the graph page via xterm.js. Provides full Kali Linux terminal with all pre-installed pentesting tools (Metasploit, Nmap, Nuclei, Hydra, sqlmap, etc.) without leaving the browser. Architecture: Browser (xterm.js) → WebSocket → Agent FastAPI proxy (`/ws/kali-terminal`) → kali-sandbox terminal server (PTY `/bin/bash` on port 8016):
+  - **Terminal server**: `terminal_server.py` — WebSocket PTY server using `os.fork` + `pty` module with async I/O via `loop.add_reader()`, connection limits (max 5 sessions), resize validation (clamped 1-500), process group cleanup, and `asyncio.Event` for clean shutdown
+  - **Agent proxy**: `/ws/kali-terminal` WebSocket endpoint in `api.py` — bidirectional relay with proper task cancellation (`asyncio.gather` with `return_exceptions`)
+  - **Frontend**: `KaliTerminal.tsx` — React component with dark Ayu theme, connection status indicator, auto-reconnect with exponential backoff (5 attempts), fullscreen toggle, browser-side keepalive ping (30s), proper xterm.js teardown, ARIA accessibility attributes
+  - **Docker**: port 8016 bound to localhost only (`127.0.0.1:8016:8016`), `TERMINAL_WS_PORT` and `KALI_TERMINAL_WS_URL` env vars
+  - **Tests**: 18 Python + TypeScript unit tests covering resize clamping, connection limits, URL derivation, reconnect logic
+
+- **"Remote Shells" renamed to "Reverse Shell"** — tab renamed for clarity to distinguish from the new RedAmon Terminal tab. The Reverse Shell tab manages agent-opened sessions (meterpreter, netcat, etc.), while RedAmon Terminal provides direct interactive sandbox access.
+
 - **Hakrawler Integration** — DOM-aware web crawler running as Docker container (`jauderho/hakrawler`). Runs in parallel with Katana, GAU, and Kiterunner during resource enumeration. Configurable depth, threads, subdomain inclusion, and scope filtering. Disabled automatically in stealth mode.
 - **jsluice JavaScript Analysis** — Passive JS analysis tool for extracting URLs, API endpoints, and embedded secrets (AWS keys, GitHub tokens, GCP credentials, etc.) from discovered JavaScript files. Runs sequentially after the parallel crawling phase.
 - **Secret Node in Neo4j** — Generic `Secret` node type linked to `BaseURL` via `[:HAS_SECRET]`. Source-agnostic design supports jsluice now and future secret discovery tools. Includes deduplication, severity classification, and redacted samples.

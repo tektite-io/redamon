@@ -14,6 +14,7 @@ interface UserSettings {
   shodanApiKey: string
   serpApiKey: string
   nvdApiKey: string
+  vulnersApiKey: string
   urlscanApiKey: string
   ngrokAuthtoken: string
   chiselServerUrl: string
@@ -25,6 +26,7 @@ const EMPTY_SETTINGS: UserSettings = {
   shodanApiKey: '',
   serpApiKey: '',
   nvdApiKey: '',
+  vulnersApiKey: '',
   urlscanApiKey: '',
   ngrokAuthtoken: '',
   chiselServerUrl: '',
@@ -221,6 +223,7 @@ export default function SettingsPage() {
           shodanApiKey: data.shodanApiKey || '',
           serpApiKey: data.serpApiKey || '',
           nvdApiKey: data.nvdApiKey || '',
+          vulnersApiKey: data.vulnersApiKey || '',
           urlscanApiKey: data.urlscanApiKey || '',
           ngrokAuthtoken: data.ngrokAuthtoken || '',
           chiselServerUrl: data.chiselServerUrl || '',
@@ -268,6 +271,7 @@ export default function SettingsPage() {
           shodanApiKey: data.shodanApiKey || '',
           serpApiKey: data.serpApiKey || '',
           nvdApiKey: data.nvdApiKey || '',
+          vulnersApiKey: data.vulnersApiKey || '',
           urlscanApiKey: data.urlscanApiKey || '',
           ngrokAuthtoken: data.ngrokAuthtoken || '',
           chiselServerUrl: data.chiselServerUrl || '',
@@ -416,6 +420,16 @@ export default function SettingsPage() {
               visible={!!visibleFields.nvdApiKey}
               onToggle={() => toggleFieldVisibility('nvdApiKey')}
               onChange={v => updateSetting('nvdApiKey', v)}
+            />
+            <SecretField
+              label="Vulners API Key"
+              hint="Vulners CVE database — alternative to NVD for vulnerability lookups with richer exploit data"
+              signupUrl="https://vulners.com/#register"
+              badges={['Recon Pipeline']}
+              value={settings.vulnersApiKey}
+              visible={!!visibleFields.vulnersApiKey}
+              onToggle={() => toggleFieldVisibility('vulnersApiKey')}
+              onChange={v => updateSetting('vulnersApiKey', v)}
             />
             <SecretField
               label="URLScan API Key"

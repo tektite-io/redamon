@@ -11,7 +11,6 @@ import asyncio
 import fcntl
 import os
 import pty
-import select
 import signal
 import struct
 import termios
@@ -22,10 +21,35 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s [terminal] %(message
 logger = logging.getLogger("terminal-server")
 
 PORT = int(os.getenv("TERMINAL_WS_PORT", "8016"))
+MAX_SESSIONS = int(os.getenv("TERMINAL_MAX_SESSIONS", "5"))
+
+_active_sessions = 0
+_session_lock = asyncio.Lock()
 
 
 async def _pty_session(ws):
     """Handle a single WebSocket connection with a PTY bash shell."""
+    global _active_sessions
+
+    async with _session_lock:
+        if _active_sessions >= MAX_SESSIONS:
+            logger.warning("Max sessions (%d) reached, rejecting connection", MAX_SESSIONS)
+            await ws.close(1013, "Max terminal sessions reached")
+            return
+        _active_sessions += 1
+
+    logger.info("Terminal session started (active: %d)", _active_sessions)
+
+    try:
+        await _run_pty_session(ws)
+    finally:
+        async with _session_lock:
+            _active_sessions -= 1
+        logger.info("Terminal session ended (active: %d)", _active_sessions)
+
+
+async def _run_pty_session(ws):
+    """Run the actual PTY session for a WebSocket connection."""
     master_fd, slave_fd = pty.openpty()
     pid = os.fork()
 
@@ -58,57 +82,72 @@ async def _pty_session(ws):
     # Set initial terminal size
     _set_pty_size(master_fd, 24, 80)
 
-    closed = False
+    close_event = asyncio.Event()
 
     async def read_pty():
-        """Read from PTY master and forward to WebSocket."""
-        nonlocal closed
-        while not closed:
+        """Read from PTY master and forward to WebSocket using async I/O."""
+        loop = asyncio.get_event_loop()
+        queue = asyncio.Queue()
+
+        def on_readable():
             try:
-                await asyncio.sleep(0.01)
-                if closed:
+                data = os.read(master_fd, 4096)
+                if data:
+                    queue.put_nowait(data)
+                else:
+                    queue.put_nowait(None)
+            except OSError as e:
+                logger.debug("PTY read error: %s", e)
+                queue.put_nowait(None)
+
+        loop.add_reader(master_fd, on_readable)
+        try:
+            while not close_event.is_set():
+                try:
+                    data = await asyncio.wait_for(queue.get(), timeout=1.0)
+                except asyncio.TimeoutError:
+                    continue
+                if data is None:
                     break
-                r, _, _ = select.select([master_fd], [], [], 0.05)
-                if r:
-                    try:
-                        data = os.read(master_fd, 4096)
-                    except OSError:
-                        break
-                    if not data:
-                        break
-                    try:
-                        await ws.send(data)
-                    except Exception:
-                        break
+                try:
+                    await ws.send(data)
+                except Exception as e:
+                    logger.debug("WebSocket send error: %s", e)
+                    break
+        finally:
+            try:
+                loop.remove_reader(master_fd)
             except Exception:
-                break
+                pass
 
     async def write_pty():
         """Read from WebSocket and forward to PTY master."""
-        nonlocal closed
         try:
             async for message in ws:
-                if closed:
+                if close_event.is_set():
                     break
 
                 if isinstance(message, bytes):
                     os.write(master_fd, message)
                 elif isinstance(message, str):
-                    # Handle JSON control messages for resize
+                    # Handle JSON control messages
                     try:
                         msg = json.loads(message)
-                        if msg.get("type") == "resize":
+                        msg_type = msg.get("type")
+                        if msg_type == "resize":
                             rows = msg.get("rows", 24)
                             cols = msg.get("cols", 80)
                             _set_pty_size(master_fd, rows, cols)
                             continue
+                        if msg_type == "ping":
+                            continue
                     except (json.JSONDecodeError, TypeError):
                         pass
                     os.write(master_fd, message.encode("utf-8"))
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("PTY write loop ended: %s", e)
         finally:
-            closed = True
+            close_event.set()
 
     try:
         reader_task = asyncio.create_task(read_pty())
@@ -117,10 +156,11 @@ async def _pty_session(ws):
             [reader_task, writer_task], return_when=asyncio.FIRST_COMPLETED
         )
     finally:
-        closed = True
+        close_event.set()
+        # Kill entire process group (child calls os.setsid())
         try:
-            os.kill(pid, signal.SIGTERM)
-        except ProcessLookupError:
+            os.killpg(pid, signal.SIGTERM)
+        except (ProcessLookupError, PermissionError):
             pass
         try:
             os.close(master_fd)
@@ -137,18 +177,20 @@ async def _pty_session(ws):
             await asyncio.sleep(0.1)
         else:
             try:
-                os.kill(pid, signal.SIGKILL)
+                os.killpg(pid, signal.SIGKILL)
                 os.waitpid(pid, 0)
-            except (ProcessLookupError, ChildProcessError):
+            except (ProcessLookupError, ChildProcessError, PermissionError):
                 pass
 
 
 def _set_pty_size(fd: int, rows: int, cols: int):
-    """Set the PTY window size."""
+    """Set the PTY window size, clamping to safe bounds."""
     try:
+        rows = max(1, min(500, int(rows)))
+        cols = max(1, min(500, int(cols)))
         winsize = struct.pack("HHHH", rows, cols, 0, 0)
         fcntl.ioctl(fd, termios.TIOCSWINSZ, winsize)
-    except (OSError, ValueError):
+    except (OSError, ValueError, TypeError, OverflowError):
         pass
 
 

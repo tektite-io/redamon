@@ -15,7 +15,7 @@
   left: 0;
   right: 0;
   bottom: 0;
-  z-index: 9999;
+  z-index: var(--z-fullscreen, 9999);
   border-radius: 0;
   border: none;
 }
@@ -120,6 +120,12 @@
   color: #4d556a;
   cursor: pointer;
   transition: color 0.15s ease, background 0.15s ease;
+}
+
+.toolbarBtn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  pointer-events: none;
 }
 
 .toolbarBtn:hover {

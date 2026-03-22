@@ -457,6 +457,7 @@ const { logs, currentPhase, currentPhaseNumber, isConnected, clearLogs } = useRe
 | `GraphToolbar` | Contains Start Recon and Download JSON buttons |
 | `ReconConfirmModal` | Confirmation dialog before starting recon (warns about data replacement) |
 | `ReconLogsDrawer` | Slide-out panel showing real-time logs with phase progress |
+| `KaliTerminal` | Interactive Kali sandbox terminal (xterm.js) with WebSocket PTY, auto-reconnect, fullscreen, dark theme |
 
 ### AI Agent Chat (AIAssistantDrawer)
 

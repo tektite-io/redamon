@@ -17,7 +17,7 @@ interface KatanaSectionProps {
 }
 
 export function KatanaSection({ data, updateField }: KatanaSectionProps) {
-  const [isOpen, setIsOpen] = useState(true)
+  const [isOpen, setIsOpen] = useState(false)
 
   return (
     <div className={styles.section}>

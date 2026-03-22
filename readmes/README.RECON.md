@@ -268,6 +268,7 @@ sequenceDiagram
         KR-->>Recon: hidden APIs
     end
     Recon->>Recon: jsluice — extract URLs & secrets from JS files
+    Recon->>Recon: FFuf — directory/endpoint fuzzing with wordlists
     Recon->>Recon: Merge & classify endpoints
     Recon->>GraphBG: Background: resource enum graph update
 
@@ -326,7 +327,7 @@ flowchart LR
     end
 
     subgraph G5["GROUP 5 — parallel + sequential"]
-        RE[Resource Enum<br/>Katana ∥ Hakrawler ∥ GAU ∥ Kiterunner<br/>then jsluice]
+        RE[Resource Enum<br/>Katana ∥ Hakrawler ∥ GAU ∥ Kiterunner<br/>then jsluice → FFuf]
     end
 
     subgraph G6["GROUP 6 — sequential"]

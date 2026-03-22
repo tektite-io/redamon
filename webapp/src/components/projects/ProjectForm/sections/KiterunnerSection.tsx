@@ -17,7 +17,7 @@ interface KiterunnerSectionProps {
 }
 
 export function KiterunnerSection({ data, updateField }: KiterunnerSectionProps) {
-  const [isOpen, setIsOpen] = useState(true)
+  const [isOpen, setIsOpen] = useState(false)
 
   return (
     <div className={styles.section}>

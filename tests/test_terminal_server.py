@@ -61,6 +61,90 @@ class TestSetPtySize:
         from terminal_server import _set_pty_size
         _set_pty_size(-1, 24, 80)  # Should not raise
 
+    def test_set_pty_size_clamps_large_rows(self):
+        """Should clamp rows > 500 to 500."""
+        import pty
+        from terminal_server import _set_pty_size
+
+        master_fd, slave_fd = pty.openpty()
+        try:
+            _set_pty_size(master_fd, 99999, 80)
+
+            import fcntl
+            import termios
+            packed = fcntl.ioctl(master_fd, termios.TIOCGWINSZ, b'\x00' * 8)
+            rows, cols, _, _ = struct.unpack("HHHH", packed)
+            assert rows == 500
+            assert cols == 80
+        finally:
+            os.close(master_fd)
+            os.close(slave_fd)
+
+    def test_set_pty_size_clamps_large_cols(self):
+        """Should clamp cols > 500 to 500."""
+        import pty
+        from terminal_server import _set_pty_size
+
+        master_fd, slave_fd = pty.openpty()
+        try:
+            _set_pty_size(master_fd, 24, 99999)
+
+            import fcntl
+            import termios
+            packed = fcntl.ioctl(master_fd, termios.TIOCGWINSZ, b'\x00' * 8)
+            rows, cols, _, _ = struct.unpack("HHHH", packed)
+            assert rows == 24
+            assert cols == 500
+        finally:
+            os.close(master_fd)
+            os.close(slave_fd)
+
+    def test_set_pty_size_clamps_zero_to_one(self):
+        """Should clamp 0 to 1."""
+        import pty
+        from terminal_server import _set_pty_size
+
+        master_fd, slave_fd = pty.openpty()
+        try:
+            _set_pty_size(master_fd, 0, 0)
+
+            import fcntl
+            import termios
+            packed = fcntl.ioctl(master_fd, termios.TIOCGWINSZ, b'\x00' * 8)
+            rows, cols, _, _ = struct.unpack("HHHH", packed)
+            assert rows == 1
+            assert cols == 1
+        finally:
+            os.close(master_fd)
+            os.close(slave_fd)
+
+    def test_set_pty_size_clamps_negative(self):
+        """Should clamp negative values to 1."""
+        import pty
+        from terminal_server import _set_pty_size
+
+        master_fd, slave_fd = pty.openpty()
+        try:
+            _set_pty_size(master_fd, -10, -20)
+
+            import fcntl
+            import termios
+            packed = fcntl.ioctl(master_fd, termios.TIOCGWINSZ, b'\x00' * 8)
+            rows, cols, _, _ = struct.unpack("HHHH", packed)
+            assert rows == 1
+            assert cols == 1
+        finally:
+            os.close(master_fd)
+            os.close(slave_fd)
+
+    def test_set_pty_size_handles_non_integer(self):
+        """Should not raise on non-integer inputs."""
+        from terminal_server import _set_pty_size
+        # These should all be handled gracefully without raising
+        _set_pty_size(-1, "abc", "xyz")
+        _set_pty_size(-1, None, None)
+        _set_pty_size(-1, 3.7, 4.2)
+
 
 class TestPortConfig:
     """Test port configuration from environment."""
@@ -88,6 +172,33 @@ class TestPortConfig:
             assert terminal_server.PORT == 9999
         finally:
             os.environ["TERMINAL_WS_PORT"] = "8016"
+
+
+class TestConnectionLimits:
+    """Test session limit configuration."""
+
+    def test_default_max_sessions(self):
+        """Should default to 5 max sessions."""
+        env_backup = os.environ.pop("TERMINAL_MAX_SESSIONS", None)
+        try:
+            import importlib
+            import terminal_server
+            importlib.reload(terminal_server)
+            assert terminal_server.MAX_SESSIONS == 5
+        finally:
+            if env_backup is not None:
+                os.environ["TERMINAL_MAX_SESSIONS"] = env_backup
+
+    def test_custom_max_sessions(self):
+        """Should use TERMINAL_MAX_SESSIONS environment variable."""
+        os.environ["TERMINAL_MAX_SESSIONS"] = "10"
+        try:
+            import importlib
+            import terminal_server
+            importlib.reload(terminal_server)
+            assert terminal_server.MAX_SESSIONS == 10
+        finally:
+            os.environ.pop("TERMINAL_MAX_SESSIONS", None)
 
 
 class TestResizeMessageParsing:
@@ -129,3 +240,9 @@ class TestResizeMessageParsing:
         except (json.JSONDecodeError, TypeError):
             pass
         assert not is_json
+
+    def test_ping_message_recognized(self):
+        """A ping message should be valid JSON with type 'ping'."""
+        msg = json.dumps({"type": "ping"})
+        parsed = json.loads(msg)
+        assert parsed["type"] == "ping"

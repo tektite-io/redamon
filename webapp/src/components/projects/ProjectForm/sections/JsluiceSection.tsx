@@ -16,7 +16,7 @@ interface JsluiceSectionProps {
 }
 
 export function JsluiceSection({ data, updateField }: JsluiceSectionProps) {
-  const [isOpen, setIsOpen] = useState(true)
+  const [isOpen, setIsOpen] = useState(false)
 
   return (
     <div className={styles.section}>

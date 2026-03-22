@@ -99,7 +99,7 @@ flowchart TB
         DNS --> Ports[🔌 Port Scan<br/>Naabu]
         Ports --> HTTP[🌍 HTTP Probe<br/>Httpx]
         HTTP --> Tech[🔧 Tech Detection<br/>Wappalyzer]
-        Tech --> Resources[🕸️ Resource Enum<br/>Katana, Hakrawler, GAU,<br/>Kiterunner, jsluice]
+        Tech --> Resources[🕸️ Resource Enum<br/>Katana, Hakrawler, GAU,<br/>Kiterunner, jsluice, FFuf]
         Resources --> Vulns[⚠️ Vuln Scan<br/>Nuclei]
     end
 
@@ -248,6 +248,8 @@ flowchart TB
 | MCP Metasploit | http://localhost:8003 | Metasploit Framework RPC |
 | MCP Nmap | http://localhost:8004 | Nmap network scanner |
 | Metasploit Progress | http://localhost:8013 | Live progress streaming for long-running exploits |
+| Tunnel Manager | http://localhost:8015 | ngrok/chisel tunnel configuration API |
+| RedAmon Terminal | ws://localhost:8016 | Kali sandbox PTY shell access (xterm.js) |
 | Metasploit Listener | localhost:4444 | Reverse shell listener (Meterpreter) |
 
 ## Recon Pipeline Detail

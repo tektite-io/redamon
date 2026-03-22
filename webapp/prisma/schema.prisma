@@ -64,6 +64,7 @@ model UserSettings {
   shodanApiKey    String   @default("") @map("shodan_api_key")
   serpApiKey       String   @default("") @map("serp_api_key")
   nvdApiKey       String   @default("") @map("nvd_api_key")
+  vulnersApiKey   String   @default("") @map("vulners_api_key")
   urlscanApiKey   String   @default("") @map("urlscan_api_key")
 
   // Tunneling & Infrastructure

@@ -7,7 +7,6 @@ import type { Project } from '@prisma/client'
 import styles from '../ProjectForm.module.css'
 import { NodeInfoTooltip } from '../NodeInfoTooltip'
 import { SECTION_NODE_MAP } from '../nodeMapping'
-import { TimeEstimate } from '../TimeEstimate'
 
 type FormData = Omit<Project, 'id' | 'userId' | 'createdAt' | 'updatedAt' | 'user'>
 
@@ -89,31 +88,14 @@ export function CveLookupSection({ data, updateField }: CveLookupSectionProps) {
               </div>
 
               <div className={styles.subSection}>
-                <h3 className={styles.subSectionTitle}>API Keys (Optional)</h3>
-                <div className={styles.fieldGroup}>
-                  <label className={styles.fieldLabel}>NVD API Key</label>
-                  <input
-                    type="password"
-                    className="textInput"
-                    value={data.nvdApiKey}
-                    onChange={(e) => updateField('nvdApiKey', e.target.value)}
-                    placeholder="Enter NVD API key for higher rate limits"
-                  />
-                  <span className={styles.fieldHint}>
-                    Get a free key at https://nvd.nist.gov/developers/request-an-api-key
-                  </span>
-                  <TimeEstimate estimate="Without key: rate-limited (10 req/min) | With key: ~80x faster" />
-                </div>
-                <div className={styles.fieldGroup}>
-                  <label className={styles.fieldLabel}>Vulners API Key</label>
-                  <input
-                    type="password"
-                    className="textInput"
-                    value={data.vulnersApiKey}
-                    onChange={(e) => updateField('vulnersApiKey', e.target.value)}
-                    placeholder="Enter Vulners API key"
-                  />
-                </div>
+                <h3 className={styles.subSectionTitle}>API Keys</h3>
+                <p className={styles.fieldHint} style={{ marginTop: 0 }}>
+                  NVD and Vulners API keys are configured in{' '}
+                  <a href="/settings" style={{ color: 'var(--color-accent)', textDecoration: 'underline' }}>
+                    Global Settings &rarr; Tool API Keys
+                  </a>
+                  . Keys set there apply to all projects automatically.
+                </p>
               </div>
             </>
           )}

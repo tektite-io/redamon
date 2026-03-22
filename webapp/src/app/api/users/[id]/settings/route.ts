@@ -30,6 +30,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         shodanApiKey: '',
         serpApiKey: '',
         nvdApiKey: '',
+        vulnersApiKey: '',
         urlscanApiKey: '',
         ngrokAuthtoken: '',
         chiselServerUrl: '',
@@ -45,6 +46,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         shodanApiKey: maskSecret(settings.shodanApiKey),
         serpApiKey: maskSecret(settings.serpApiKey),
         nvdApiKey: maskSecret(settings.nvdApiKey),
+        vulnersApiKey: maskSecret(settings.vulnersApiKey),
         urlscanApiKey: maskSecret(settings.urlscanApiKey),
         ngrokAuthtoken: maskSecret(settings.ngrokAuthtoken),
         chiselAuth: maskSecret(settings.chiselAuth),
@@ -73,7 +75,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     })
 
     const data: Record<string, string> = {}
-    const fields = ['tavilyApiKey', 'shodanApiKey', 'serpApiKey', 'nvdApiKey', 'urlscanApiKey', 'ngrokAuthtoken', 'chiselServerUrl', 'chiselAuth'] as const
+    const fields = ['tavilyApiKey', 'shodanApiKey', 'serpApiKey', 'nvdApiKey', 'vulnersApiKey', 'urlscanApiKey', 'ngrokAuthtoken', 'chiselServerUrl', 'chiselAuth'] as const
 
     for (const field of fields) {
       if (field in body) {
@@ -122,6 +124,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       shodanApiKey: maskSecret(settings.shodanApiKey),
       serpApiKey: maskSecret(settings.serpApiKey),
       nvdApiKey: maskSecret(settings.nvdApiKey),
+      vulnersApiKey: maskSecret(settings.vulnersApiKey),
       urlscanApiKey: maskSecret(settings.urlscanApiKey),
       ngrokAuthtoken: maskSecret(settings.ngrokAuthtoken),
       chiselAuth: maskSecret(settings.chiselAuth),

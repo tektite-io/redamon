@@ -302,7 +302,7 @@ services:
       - "4444:4444"
       - "4040:4040"
       - "8015:8015"
-      - "8016:8016"
+      - "127.0.0.1:8016:8016"
     volumes:
       - ./mcp/servers:/opt/mcp_servers
       - ./mcp/output:/opt/output

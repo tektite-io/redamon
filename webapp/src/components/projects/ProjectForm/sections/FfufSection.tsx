@@ -32,7 +32,7 @@ interface FfufSectionProps {
 }
 
 export function FfufSection({ data, updateField, projectId, mode }: FfufSectionProps) {
-  const [isOpen, setIsOpen] = useState(true)
+  const [isOpen, setIsOpen] = useState(false)
   const [customWordlists, setCustomWordlists] = useState<CustomWordlist[]>([])
   const [isUploading, setIsUploading] = useState(false)
   const [uploadError, setUploadError] = useState<string | null>(null)

@@ -17,7 +17,7 @@ interface UrlscanSectionProps {
 }
 
 export function UrlscanSection({ data, updateField }: UrlscanSectionProps) {
-  const [isOpen, setIsOpen] = useState(true)
+  const [isOpen, setIsOpen] = useState(false)
   const { userId } = useProject()
   const [hasApiKey, setHasApiKey] = useState<boolean | null>(null)
 

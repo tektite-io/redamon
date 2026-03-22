@@ -19,7 +19,7 @@ interface GauSectionProps {
 const PROVIDER_OPTIONS = ['wayback', 'commoncrawl', 'otx', 'urlscan']
 
 export function GauSection({ data, updateField }: GauSectionProps) {
-  const [isOpen, setIsOpen] = useState(true)
+  const [isOpen, setIsOpen] = useState(false)
 
   const toggleProvider = (provider: string) => {
     const current = data.gauProviders ?? []
