@@ -129,7 +129,7 @@ services:
   # works via version checks and response analysis. Using network_mode: host
   # would break socket communication with other containers.
   ospd-openvas:
-    image: registry.community.greenbone.net/community/ospd-openvas:stable
+    image: registry.community.greenbone.net/community/ospd-openvas:22.7.1
     container_name: redamon-gvm-ospd
     restart: on-failure
     hostname: ospd-openvas.local
