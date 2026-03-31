@@ -28,14 +28,6 @@ from tools import (
     WebSearchToolManager,
     ShodanToolManager,
     GoogleDorkToolManager,
-    CensysToolManager,
-    FofaToolManager,
-    OtxToolManager,
-    NetlasToolManager,
-    VirusTotalToolManager,
-    ZoomEyeToolManager,
-    CriminalIpToolManager,
-    UncoverToolManager,
     PhaseAwareToolExecutor,
 )
 from orchestrator_helpers import (
@@ -217,45 +209,6 @@ class AgentOrchestrator:
         if serp_api_key and self._google_dork_manager:
             self._google_dork_manager.key_rotator = _build_rotator(serp_api_key, 'serp')
 
-        # OSINT tools — Censys, FOFA, OTX, Netlas, VirusTotal, ZoomEye, CriminalIP
-        if hasattr(self, '_osint_managers') and self.tool_executor:
-            _osint_key_map = {
-                'censys': {'token_field': 'censysApiToken', 'org_field': 'censysOrgId'},
-                'fofa': {'key_field': 'fofaApiKey', 'rotation_name': 'fofa'},
-                'otx': {'key_field': 'otxApiKey', 'rotation_name': 'otx'},
-                'netlas': {'key_field': 'netlasApiKey', 'rotation_name': 'netlas'},
-                'virustotal': {'key_field': 'virusTotalApiKey', 'rotation_name': 'virustotal'},
-                'zoomeye': {'key_field': 'zoomEyeApiKey', 'rotation_name': 'zoomeye'},
-                'criminalip': {'key_field': 'criminalIpApiKey', 'rotation_name': 'criminalip'},
-                'uncover': {'key_field': None},
-            }
-            for tool_name, key_cfg in _osint_key_map.items():
-                mgr = self._osint_managers.get(tool_name)
-                if not mgr:
-                    continue
-                enabled = get_setting(f'{tool_name.upper()}_ENABLED', True)
-                if not enabled:
-                    self.tool_executor.update_osint_tool(tool_name, None)
-                    continue
-                if tool_name == 'uncover':
-                    self.tool_executor.update_osint_tool(tool_name, mgr.get_tool())
-                elif tool_name == 'censys':
-                    api_token = user_settings.get(key_cfg['token_field'], '')
-                    org_id = user_settings.get(key_cfg['org_field'], '')
-                    if api_token and org_id and (mgr.api_token != api_token or mgr.org_id != org_id):
-                        mgr.api_token = api_token
-                        mgr.org_id = org_id
-                        self.tool_executor.update_osint_tool(tool_name, mgr.get_tool())
-                        logger.info(f"Updated {tool_name} tool with API credentials")
-                else:
-                    key_val = user_settings.get(key_cfg['key_field'], '')
-                    if key_val and mgr.api_key != key_val:
-                        mgr.api_key = key_val
-                        self.tool_executor.update_osint_tool(tool_name, mgr.get_tool())
-                        logger.info(f"Updated {tool_name} tool with API key")
-                    if key_val and hasattr(mgr, 'key_rotator'):
-                        mgr.key_rotator = _build_rotator(key_val, key_cfg.get('rotation_name', tool_name))
-
     def _setup_llm(self) -> None:
         """Initialize the LLM based on current model_name.
 
@@ -316,27 +269,10 @@ class AgentOrchestrator:
         self._google_dork_manager = GoogleDorkToolManager()
         google_dork_tool = self._google_dork_manager.get_tool()
 
-        # Setup additional OSINT tool managers (keys resolved via _apply_project_settings)
-        self._osint_managers = {
-            'censys': CensysToolManager(),
-            'fofa': FofaToolManager(),
-            'otx': OtxToolManager(),
-            'netlas': NetlasToolManager(),
-            'virustotal': VirusTotalToolManager(),
-            'zoomeye': ZoomEyeToolManager(),
-            'criminalip': CriminalIpToolManager(),
-            'uncover': UncoverToolManager(),
-        }
-        osint_tools = {
-            name: mgr.get_tool()
-            for name, mgr in self._osint_managers.items()
-        }
-
         # Create phase-aware tool executor
         self.tool_executor = PhaseAwareToolExecutor(
             mcp_manager, graph_tool, web_search_tool,
             shodan_tool, google_dork_tool,
-            osint_tools=osint_tools,
         )
         self.tool_executor.register_mcp_tools(mcp_tools)
 
