@@ -16,7 +16,8 @@ TOOL_REGISTRY = {
             '   - **Nodes:** Domains, Subdomains, IPs, Ports, Services, BaseURLs, DNSRecords, '
             'Endpoints, Parameters, Certificates, Headers, Technologies, Vulnerabilities, '
             'CVEs, MitreData (CWE), CAPEC, Traceroute hops, Exploits, ExploitGvm, '
-            'GithubHunt, Repositories, Paths, Secrets, SensitiveFiles\n'
+            'GithubHunt, Repositories, Paths, Secrets, SensitiveFiles, '
+            'JsReconFinding, TrufflehogScan, TrufflehogRepository, TrufflehogFinding\n'
             '   - Skip if you already know which specific tool to use'
         ),
     },

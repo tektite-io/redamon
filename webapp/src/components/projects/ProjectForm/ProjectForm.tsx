@@ -39,6 +39,7 @@ import { GvmScanSection } from './sections/GvmScanSection'
 import { CypherFixSettingsSection } from './sections/CypherFixSettingsSection'
 import { RoeSection } from './sections/RoeSection'
 import { OsintEnrichmentSection } from './sections/OsintEnrichmentSection'
+import { JsReconSection } from './sections/JsReconSection'
 
 type ProjectFormData = Omit<Project, 'id' | 'userId' | 'createdAt' | 'updatedAt' | 'user'>
 
@@ -82,6 +83,7 @@ const TAB_GROUPS = [
       { id: 'port', label: 'Port Scanning' },
       { id: 'http', label: 'HTTP Probing' },
       { id: 'resource', label: 'Resource Enum' },
+      { id: 'jsrecon', label: 'JS Recon' },
       { id: 'vuln', label: 'Vulnerability Scanning' },
       { id: 'cve', label: 'CVE & MITRE' },
       { id: 'security', label: 'Security Checks' },
@@ -177,9 +179,14 @@ export function ProjectForm({
       .catch(() => setHasGithubToken(false))
   }, [userId])
 
-  // Prefer URL param on settings page so wordlist upload etc. always get a real id
+  // Prefer URL param on settings page so wordlist upload etc. always get a real id.
+  // In create mode, generate a stable ID upfront so uploads (JS Recon, FFuf wordlists)
+  // can use it immediately — the same ID is sent to the backend on save.
+  const [generatedId] = useState(() =>
+    typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID().replace(/-/g, '').slice(0, 25) : ''
+  )
   const projectId =
-    projectIdFromRoute ?? (initialData as { id?: string } | undefined)?.id
+    projectIdFromRoute ?? (initialData as { id?: string } | undefined)?.id ?? (mode === 'create' ? generatedId : undefined)
 
   // Check for domain conflicts (IP mode skips — tenant-scoped constraints allow overlap)
   const checkConflict = useCallback(async () => {
@@ -284,8 +291,12 @@ export function ProjectForm({
     }
 
     try {
-      // Attach roeFile to form data for multipart submission
-      const submitData = roeFile ? { ...formData, roeFile } : formData
+      // Attach roeFile and pre-generated ID to form data for submission
+      const submitData = {
+        ...formData,
+        ...(roeFile ? { roeFile } : {}),
+        ...(mode === 'create' && projectId ? { id: projectId } : {}),
+      }
       await onSubmit(submitData)
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to save project'
@@ -459,6 +470,10 @@ export function ProjectForm({
             <KiterunnerSection data={formData} updateField={updateField} />
             <ArjunSection data={formData} updateField={updateField} />
           </>
+        )}
+
+        {activeTab === 'jsrecon' && (
+          <JsReconSection data={formData} updateField={updateField} projectId={projectId} mode={mode} />
         )}
 
         {activeTab === 'vuln' && (

@@ -311,6 +311,18 @@
   letter-spacing: var(--tracking-wide);
 }
 
+.subSectionTitleCollapsible {
+  composes: subSectionTitle;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.subSectionTitleCollapsible:hover {
+  color: var(--text-primary);
+}
+
 /* Conflict warning banner */
 .conflictBanner {
   display: flex;

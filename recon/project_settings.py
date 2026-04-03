@@ -269,6 +269,33 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     'JSLUICE_EXTRACT_SECRETS': True,
     'JSLUICE_CONCURRENCY': 5,
 
+    # ========== JS RECON SCANNER ==========
+    'JS_RECON_ENABLED': False,
+    'JS_RECON_MAX_FILES': 500,
+    'JS_RECON_TIMEOUT': 900,
+    'JS_RECON_CONCURRENCY': 10,
+    'JS_RECON_VALIDATE_KEYS': True,
+    'JS_RECON_VALIDATION_TIMEOUT': 5,
+    'JS_RECON_EXTRACT_ENDPOINTS': True,
+    'JS_RECON_REGEX_PATTERNS': True,
+    'JS_RECON_SOURCE_MAPS': True,
+    'JS_RECON_DEPENDENCY_CHECK': True,
+    'JS_RECON_DOM_SINKS': True,
+    'JS_RECON_FRAMEWORK_DETECT': True,
+    'JS_RECON_DEV_COMMENTS': True,
+    'JS_RECON_INCLUDE_CHUNKS': True,
+    'JS_RECON_INCLUDE_FRAMEWORK_JS': True,
+    'JS_RECON_INCLUDE_ARCHIVED_JS': True,
+    'JS_RECON_MIN_CONFIDENCE': 'low',
+    'JS_RECON_STANDALONE_CRAWL_DEPTH': 3,
+    'JS_RECON_STANDALONE_CRAWL_SCOPE': 'subdomain',
+    'JS_RECON_UPLOADED_FILES': [],
+    'JS_RECON_CUSTOM_PATTERNS': '',
+    'JS_RECON_CUSTOM_SOURCEMAP_PATHS': '',
+    'JS_RECON_CUSTOM_PACKAGES': '',
+    'JS_RECON_CUSTOM_ENDPOINT_KEYWORDS': '',
+    'JS_RECON_CUSTOM_FRAMEWORKS': '',
+
     # FFuf Directory Fuzzer
     'FFUF_ENABLED': False,
     'FFUF_WORDLIST': '/usr/share/seclists/Discovery/Web-Content/common.txt',
@@ -678,6 +705,33 @@ def fetch_project_settings(project_id: str, webapp_url: str) -> dict[str, Any]:
     settings['JSLUICE_EXTRACT_URLS'] = project.get('jsluiceExtractUrls', DEFAULT_SETTINGS['JSLUICE_EXTRACT_URLS'])
     settings['JSLUICE_EXTRACT_SECRETS'] = project.get('jsluiceExtractSecrets', DEFAULT_SETTINGS['JSLUICE_EXTRACT_SECRETS'])
     settings['JSLUICE_CONCURRENCY'] = project.get('jsluiceConcurrency', DEFAULT_SETTINGS['JSLUICE_CONCURRENCY'])
+
+    # JS Recon Scanner
+    settings['JS_RECON_ENABLED'] = project.get('jsReconEnabled', DEFAULT_SETTINGS['JS_RECON_ENABLED'])
+    settings['JS_RECON_MAX_FILES'] = project.get('jsReconMaxFiles', DEFAULT_SETTINGS['JS_RECON_MAX_FILES'])
+    settings['JS_RECON_TIMEOUT'] = project.get('jsReconTimeout', DEFAULT_SETTINGS['JS_RECON_TIMEOUT'])
+    settings['JS_RECON_CONCURRENCY'] = project.get('jsReconConcurrency', DEFAULT_SETTINGS['JS_RECON_CONCURRENCY'])
+    settings['JS_RECON_VALIDATE_KEYS'] = project.get('jsReconValidateKeys', DEFAULT_SETTINGS['JS_RECON_VALIDATE_KEYS'])
+    settings['JS_RECON_VALIDATION_TIMEOUT'] = project.get('jsReconValidationTimeout', DEFAULT_SETTINGS['JS_RECON_VALIDATION_TIMEOUT'])
+    settings['JS_RECON_EXTRACT_ENDPOINTS'] = project.get('jsReconExtractEndpoints', DEFAULT_SETTINGS['JS_RECON_EXTRACT_ENDPOINTS'])
+    settings['JS_RECON_REGEX_PATTERNS'] = project.get('jsReconRegexPatterns', DEFAULT_SETTINGS['JS_RECON_REGEX_PATTERNS'])
+    settings['JS_RECON_SOURCE_MAPS'] = project.get('jsReconSourceMaps', DEFAULT_SETTINGS['JS_RECON_SOURCE_MAPS'])
+    settings['JS_RECON_DEPENDENCY_CHECK'] = project.get('jsReconDependencyCheck', DEFAULT_SETTINGS['JS_RECON_DEPENDENCY_CHECK'])
+    settings['JS_RECON_DOM_SINKS'] = project.get('jsReconDomSinks', DEFAULT_SETTINGS['JS_RECON_DOM_SINKS'])
+    settings['JS_RECON_FRAMEWORK_DETECT'] = project.get('jsReconFrameworkDetect', DEFAULT_SETTINGS['JS_RECON_FRAMEWORK_DETECT'])
+    settings['JS_RECON_DEV_COMMENTS'] = project.get('jsReconDevComments', DEFAULT_SETTINGS['JS_RECON_DEV_COMMENTS'])
+    settings['JS_RECON_INCLUDE_CHUNKS'] = project.get('jsReconIncludeChunks', DEFAULT_SETTINGS['JS_RECON_INCLUDE_CHUNKS'])
+    settings['JS_RECON_INCLUDE_FRAMEWORK_JS'] = project.get('jsReconIncludeFrameworkJs', DEFAULT_SETTINGS['JS_RECON_INCLUDE_FRAMEWORK_JS'])
+    settings['JS_RECON_INCLUDE_ARCHIVED_JS'] = project.get('jsReconIncludeArchivedJs', DEFAULT_SETTINGS['JS_RECON_INCLUDE_ARCHIVED_JS'])
+    settings['JS_RECON_MIN_CONFIDENCE'] = project.get('jsReconMinConfidence', DEFAULT_SETTINGS['JS_RECON_MIN_CONFIDENCE'])
+    settings['JS_RECON_STANDALONE_CRAWL_DEPTH'] = project.get('jsReconStandaloneCrawlDepth', DEFAULT_SETTINGS['JS_RECON_STANDALONE_CRAWL_DEPTH'])
+    settings['JS_RECON_STANDALONE_CRAWL_SCOPE'] = project.get('jsReconStandaloneCrawlScope', DEFAULT_SETTINGS['JS_RECON_STANDALONE_CRAWL_SCOPE'])
+    settings['JS_RECON_UPLOADED_FILES'] = project.get('jsReconUploadedFiles', DEFAULT_SETTINGS['JS_RECON_UPLOADED_FILES'])
+    settings['JS_RECON_CUSTOM_PATTERNS'] = project.get('jsReconCustomPatterns', DEFAULT_SETTINGS['JS_RECON_CUSTOM_PATTERNS'])
+    settings['JS_RECON_CUSTOM_SOURCEMAP_PATHS'] = project.get('jsReconCustomSourcemapPaths', DEFAULT_SETTINGS['JS_RECON_CUSTOM_SOURCEMAP_PATHS'])
+    settings['JS_RECON_CUSTOM_PACKAGES'] = project.get('jsReconCustomPackages', DEFAULT_SETTINGS['JS_RECON_CUSTOM_PACKAGES'])
+    settings['JS_RECON_CUSTOM_ENDPOINT_KEYWORDS'] = project.get('jsReconCustomEndpointKeywords', DEFAULT_SETTINGS['JS_RECON_CUSTOM_ENDPOINT_KEYWORDS'])
+    settings['JS_RECON_CUSTOM_FRAMEWORKS'] = project.get('jsReconCustomFrameworks', DEFAULT_SETTINGS['JS_RECON_CUSTOM_FRAMEWORKS'])
 
     # FFuf Directory Fuzzer
     settings['FFUF_ENABLED'] = project.get('ffufEnabled', DEFAULT_SETTINGS['FFUF_ENABLED'])
@@ -1171,8 +1225,14 @@ def apply_stealth_overrides(settings: dict[str, Any]) -> dict[str, Any]:
     # --- Masscan: DISABLED (active SYN scanning) ---
     settings['MASSCAN_ENABLED'] = False
 
+    # --- JS Recon: disable validation (makes outbound API calls), reduce scope ---
+    settings['JS_RECON_MAX_FILES'] = 50
+    settings['JS_RECON_VALIDATE_KEYS'] = False
+    settings['JS_RECON_INCLUDE_CHUNKS'] = False
+    settings['JS_RECON_INCLUDE_FRAMEWORK_JS'] = False
+
     logger.info("Stealth overrides applied: Naabu=passive, Masscan=OFF, httpx=low-rate, Katana=minimal, "
                 "Nuclei=no-DAST, Kiterunner=OFF, BannerGrab=OFF, BruteForce=OFF, "
-                "ActiveSecurityChecks=OFF")
+                "ActiveSecurityChecks=OFF, JsRecon=reduced")
 
     return settings

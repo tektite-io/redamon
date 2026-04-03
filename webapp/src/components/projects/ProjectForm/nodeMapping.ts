@@ -21,6 +21,7 @@ export const SECTION_INPUT_MAP: Record<string, string[]> = {
   Github:             ['Domain'],
   SecurityChecks:     ['BaseURL', 'IP', 'Subdomain', 'Domain'],
   Uncover:            ['Domain'],
+  JsRecon:            ['BaseURL', 'Endpoint'],
 }
 
 export const SECTION_NODE_MAP: Record<string, string[]> = {
@@ -46,4 +47,5 @@ export const SECTION_NODE_MAP: Record<string, string[]> = {
   Github:             ['GithubHunt', 'GithubRepository', 'GithubPath', 'GithubSecret', 'GithubSensitiveFile'],
   SecurityChecks:     ['Vulnerability'],
   Uncover:            ['IP', 'Subdomain', 'Port', 'Endpoint'],
+  JsRecon:            ['JsReconFinding', 'Secret', 'Endpoint', 'Parameter'],
 }

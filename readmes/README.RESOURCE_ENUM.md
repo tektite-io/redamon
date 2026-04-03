@@ -51,7 +51,7 @@ The `resource_enum.py` module provides comprehensive endpoint discovery and clas
 
 ```
 ┌─────────────────┐     ┌────────────────────────────────────────────────┐     ┌─────────────────┐
-│  http_probe     │────▶│              resource_enum                      │────▶│  vuln_scan      │
+│  http_probe     │────▶│              resource_enum                      │────▶│  js_recon (5b)  │────▶│  vuln_scan      │
 │  (live URLs,    │     │                                                │     │  (targeted      │
 │   responses)    │     │  ┌────────────┐ ┌────────────┐ ┌─────────────┐ │     │   scanning)     │
 └─────────────────┘     │  │  Katana    │ │    GAU     │ │ Kiterunner  │ │     └─────────────────┘

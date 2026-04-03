@@ -8,6 +8,7 @@ Provides methods to ingest data from:
 - http_probe (BaseURL, Technology, Header, Certificate nodes)
 - vuln_scan (Vulnerability, CVE, Exploit, MitreData, Capec nodes)
 - resource_enum (Endpoint, Parameter nodes)
+- js_recon (JsReconFinding, Secret nodes with js_recon source)
 """
 
 import json
@@ -2890,6 +2891,345 @@ class ReconMixin:
 
             if stats["errors"]:
                 print(f"[!][graph-db] {len(stats['errors'])} errors occurred")
+
+        return stats
+
+    # ========== JS RECON SCANNER ==========
+
+    def update_graph_from_js_recon(self, recon_data: dict, user_id: str, project_id: str) -> dict:
+        """
+        Ingest JS Recon Scanner results into the graph.
+
+        Creates:
+        - JsReconFinding nodes (dependency confusion, source maps, DOM sinks, frameworks, dev comments)
+        - Secret nodes with source='js_recon' and validation fields
+        - Endpoint nodes with source='js_recon'
+
+        Relationships:
+        - (BaseURL)-[:HAS_JS_FINDING]->(JsReconFinding)
+        - (BaseURL)-[:HAS_SECRET]->(Secret)
+        - (BaseURL)-[:HAS_ENDPOINT]->(Endpoint)
+        """
+        js_recon_data = recon_data.get("js_recon", {})
+        if not js_recon_data:
+            return {"status": "skipped", "reason": "no js_recon data"}
+
+        stats = {
+            "findings_created": 0,
+            "secrets_created": 0,
+            "endpoints_created": 0,
+            "relationships_created": 0,
+            "errors": [],
+        }
+
+        scan_ts = js_recon_data.get("scan_metadata", {}).get("scan_timestamp", "")
+
+        def _is_uploaded(source_url: str) -> bool:
+            """Check if source_url is from a manually uploaded file."""
+            return source_url.startswith('upload://')
+
+        def _derive_base_url(source_url: str) -> str:
+            """Derive base_url from source_url. Returns '' for uploads or invalid URLs."""
+            if not source_url or _is_uploaded(source_url):
+                return ''
+            try:
+                parsed = urlparse(source_url)
+                if parsed.netloc:
+                    return f"{parsed.scheme}://{parsed.netloc}"
+            except Exception:
+                pass
+            return ''
+
+        # Whitelisted node labels and relationship types for Cypher f-string safety
+        _ALLOWED_LABELS = {'JsReconFinding', 'Secret', 'Endpoint'}
+        _ALLOWED_RELS = {'HAS_JS_FINDING', 'HAS_SECRET', 'HAS_ENDPOINT'}
+
+        # Get domain name from recon_data for accurate Domain node matching
+        domain_name = recon_data.get('domain', '')
+
+        def _link_to_graph(session, node_id: str, node_label: str, rel_type: str,
+                           base_url: str, source_url: str) -> bool:
+            """Link a node to BaseURL (pipeline) or Domain (uploaded files).
+
+            Uses f-string for label/rel injection but both are whitelist-validated.
+            """
+            if node_label not in _ALLOWED_LABELS:
+                return False
+            if rel_type not in _ALLOWED_RELS:
+                return False
+
+            if base_url:
+                session.run(
+                    f"""
+                    MATCH (bu:BaseURL {{url: $base_url, user_id: $uid, project_id: $pid}})
+                    MATCH (n:{node_label} {{id: $nid}})
+                    MERGE (bu)-[:{rel_type}]->(n)
+                    """,
+                    base_url=base_url, uid=user_id, pid=project_id, nid=node_id
+                )
+                return True
+            elif _is_uploaded(source_url):
+                # Link to Domain node for uploaded files
+                if domain_name:
+                    session.run(
+                        f"""
+                        MATCH (d:Domain {{name: $dname, user_id: $uid, project_id: $pid}})
+                        MATCH (n:{node_label} {{id: $nid}})
+                        MERGE (d)-[:{rel_type}]->(n)
+                        """,
+                        dname=domain_name, uid=user_id, pid=project_id, nid=node_id
+                    )
+                else:
+                    # Fallback: match any Domain for this project
+                    session.run(
+                        f"""
+                        MATCH (d:Domain {{user_id: $uid, project_id: $pid}})
+                        WITH d LIMIT 1
+                        MATCH (n:{node_label} {{id: $nid}})
+                        MERGE (d)-[:{rel_type}]->(n)
+                        """,
+                        uid=user_id, pid=project_id, nid=node_id
+                    )
+                return True
+            return False
+
+        with self.driver.session() as session:
+            # --- 1. JsReconFinding nodes (non-secret findings) ---
+            finding_types = [
+                ("dependencies", "dependency_confusion"),
+                ("source_maps", "source_map_exposure"),
+                ("dom_sinks", "dom_sink"),
+                ("dev_comments", "dev_comment"),
+            ]
+
+            for data_key, finding_type in finding_types:
+                findings = js_recon_data.get(data_key, [])
+                for finding in findings:
+                    try:
+                        finding_id = finding.get("id")
+                        if not finding_id:
+                            continue
+
+                        node_id = f"jsrf-{user_id}-{project_id}-{finding_id}"
+                        source_url = finding.get("source_url", finding.get("js_url", ""))
+                        base_url = _derive_base_url(source_url)
+
+                        props = {
+                            "id": node_id,
+                            "user_id": user_id,
+                            "project_id": project_id,
+                            "finding_type": finding.get("finding_type", finding_type),
+                            "severity": finding.get("severity", "info"),
+                            "confidence": finding.get("confidence", "medium"),
+                            "title": finding.get("title", finding.get("type", finding_type)),
+                            "detail": finding.get("detail", finding.get("content", finding.get("description", ""))),
+                            "evidence": finding.get("evidence", finding.get("pattern", finding.get("content", "")))[:500],
+                            "source_url": source_url,
+                            "base_url": base_url or 'upload',
+                            "source": "js_recon",
+                            "discovered_at": scan_ts,
+                        }
+
+                        session.run(
+                            "MERGE (jf:JsReconFinding {id: $id}) SET jf += $props, jf.updated_at = datetime()",
+                            id=node_id, props=props
+                        )
+                        stats["findings_created"] += 1
+
+                        if _link_to_graph(session, node_id, 'JsReconFinding', 'HAS_JS_FINDING', base_url, source_url):
+                            stats["relationships_created"] += 1
+
+                    except Exception as e:
+                        stats["errors"].append(f"JsReconFinding creation failed: {e}")
+
+            # Framework findings
+            for fw in js_recon_data.get("frameworks", []):
+                try:
+                    fw_id = fw.get("id")
+                    if not fw_id:
+                        continue
+                    node_id = f"jsrf-{user_id}-{project_id}-{fw_id}"
+                    source_url = fw.get("source_url", "")
+                    base_url = _derive_base_url(source_url)
+
+                    version_str = f" {fw['version']}" if fw.get('version') else ""
+                    props = {
+                        "id": node_id,
+                        "user_id": user_id,
+                        "project_id": project_id,
+                        "finding_type": "framework",
+                        "severity": "info",
+                        "confidence": fw.get("confidence", "medium"),
+                        "title": f"{fw['name']}{version_str}",
+                        "detail": f"Framework detected: {fw['name']}{version_str}",
+                        "evidence": fw.get("name", ""),
+                        "source_url": source_url,
+                        "base_url": base_url or 'upload',
+                        "source": "js_recon",
+                        "discovered_at": scan_ts,
+                    }
+                    session.run(
+                        "MERGE (jf:JsReconFinding {id: $id}) SET jf += $props, jf.updated_at = datetime()",
+                        id=node_id, props=props
+                    )
+                    stats["findings_created"] += 1
+
+                    if _link_finding_to_graph(session, node_id, 'JsReconFinding', base_url, source_url):
+                        stats["relationships_created"] += 1
+                except Exception as e:
+                    stats["errors"].append(f"Framework finding failed: {e}")
+
+            # --- 2. Secret nodes (source='js_recon', extends existing Secret with validation) ---
+            created_secrets = set()
+            for secret in js_recon_data.get("secrets", []):
+                try:
+                    secret_id = secret.get("id")
+                    if not secret_id:
+                        continue
+
+                    node_id = f"secret-{user_id}-{project_id}-{secret_id}"
+                    if node_id in created_secrets:
+                        continue
+
+                    source_url = secret.get("source_url", "")
+                    base_url = _derive_base_url(source_url)
+
+                    validation = secret.get("validation", {})
+
+                    # Create the Secret node
+                    session.run(
+                        """
+                        MERGE (s:Secret {id: $id})
+                        SET s.user_id = $user_id,
+                            s.project_id = $project_id,
+                            s.secret_type = $secret_type,
+                            s.severity = $severity,
+                            s.source = 'js_recon',
+                            s.source_url = $source_url,
+                            s.base_url = $base_url,
+                            s.sample = $sample,
+                            s.confidence = $confidence,
+                            s.detection_method = $detection_method,
+                            s.key_type = $key_type,
+                            s.validation_status = $validation_status,
+                            s.validation_info = $validation_info,
+                            s.discovered_at = $discovered_at,
+                            s.updated_at = datetime()
+                        """,
+                        id=node_id, user_id=user_id, project_id=project_id,
+                        secret_type=secret.get("name", "unknown"),
+                        severity=secret.get("severity", "info"),
+                        source_url=source_url,
+                        base_url=base_url or 'upload',
+                        sample=secret.get("redacted_value", ""),
+                        confidence=secret.get("confidence", "medium"),
+                        detection_method=secret.get("detection_method", "regex"),
+                        key_type=secret.get("category", ""),
+                        validation_status=validation.get("status", "unvalidated"),
+                        validation_info=json.dumps(validation) if validation else "",
+                        discovered_at=scan_ts,
+                    )
+                    created_secrets.add(node_id)
+                    stats["secrets_created"] += 1
+
+                    # Link to BaseURL (pipeline) or Domain (uploads)
+                    if _link_to_graph(session, node_id, 'Secret', 'HAS_SECRET', base_url, source_url):
+                        stats["relationships_created"] += 1
+
+                except Exception as e:
+                    stats["errors"].append(f"JS Recon Secret node failed: {e}")
+
+            # --- 3. Endpoint nodes (source='js_recon') ---
+            created_endpoints = set()
+            for ep in js_recon_data.get("endpoints", []):
+                try:
+                    path = ep.get("path", "")
+                    method = ep.get("method", "GET")
+                    source_js = ep.get("source_js", "")
+                    base_url = ep.get("base_url", "")
+                    is_upload = _is_uploaded(source_js)
+
+                    if not base_url and source_js and not is_upload:
+                        base_url = _derive_base_url(source_js)
+
+                    if not path:
+                        continue
+                    # Uploaded endpoints without base_url: still create node, link to Domain
+                    if not base_url and not is_upload:
+                        continue
+
+                    ep_key = f"{method}:{path}:{base_url or 'upload'}"
+                    if ep_key in created_endpoints:
+                        continue
+                    created_endpoints.add(ep_key)
+
+                    effective_baseurl = base_url or 'upload'
+
+                    session.run(
+                        """
+                        MERGE (e:Endpoint {path: $path, method: $method, baseurl: $baseurl, user_id: $uid, project_id: $pid})
+                        ON CREATE SET e.source = 'js_recon',
+                            e.category = $category,
+                            e.full_url = $full_url,
+                            e.endpoint_type = $ep_type,
+                            e.updated_at = datetime()
+                        ON MATCH SET e.js_recon_source = true,
+                            e.endpoint_type = COALESCE(e.endpoint_type, $ep_type),
+                            e.full_url = COALESCE(e.full_url, $full_url),
+                            e.updated_at = datetime()
+                        """,
+                        path=path, method=method, baseurl=effective_baseurl,
+                        uid=user_id, pid=project_id,
+                        category=ep.get("category", "endpoint"),
+                        full_url=ep.get("full_url", ""),
+                        ep_type=ep.get("type", "rest"),
+                    )
+                    stats["endpoints_created"] += 1
+
+                    # Link to BaseURL (pipeline) or Domain (uploads)
+                    ep_node_id = f"ep-{user_id}-{project_id}-{method}:{path}:{effective_baseurl}"
+                    if base_url:
+                        session.run(
+                            """
+                            MATCH (bu:BaseURL {url: $baseurl, user_id: $uid, project_id: $pid})
+                            MATCH (e:Endpoint {path: $path, method: $method, baseurl: $baseurl, user_id: $uid, project_id: $pid})
+                            MERGE (bu)-[:HAS_ENDPOINT]->(e)
+                            """,
+                            baseurl=base_url, path=path, method=method, uid=user_id, pid=project_id
+                        )
+                        stats["relationships_created"] += 1
+                    elif is_upload:
+                        if domain_name:
+                            session.run(
+                                """
+                                MATCH (d:Domain {name: $dname, user_id: $uid, project_id: $pid})
+                                MATCH (e:Endpoint {path: $path, method: $method, baseurl: $baseurl, user_id: $uid, project_id: $pid})
+                                MERGE (d)-[:HAS_ENDPOINT]->(e)
+                                """,
+                                dname=domain_name, path=path, method=method,
+                                baseurl=effective_baseurl, uid=user_id, pid=project_id
+                            )
+                        else:
+                            session.run(
+                                """
+                                MATCH (d:Domain {user_id: $uid, project_id: $pid})
+                                WITH d LIMIT 1
+                                MATCH (e:Endpoint {path: $path, method: $method, baseurl: $baseurl, user_id: $uid, project_id: $pid})
+                                MERGE (d)-[:HAS_ENDPOINT]->(e)
+                                """,
+                                path=path, method=method, baseurl=effective_baseurl,
+                                uid=user_id, pid=project_id
+                            )
+                        stats["relationships_created"] += 1
+
+                except Exception as e:
+                    stats["errors"].append(f"JS Recon Endpoint node failed: {e}")
+
+        print(f"[+][graph-db] JS Recon: {stats['findings_created']} findings, "
+              f"{stats['secrets_created']} secrets, {stats['endpoints_created']} endpoints, "
+              f"{stats['relationships_created']} relationships")
+        if stats["errors"]:
+            print(f"[!][graph-db] JS Recon: {len(stats['errors'])} errors")
 
         return stats
 

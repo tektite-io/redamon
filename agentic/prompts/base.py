@@ -1249,6 +1249,31 @@ GVM-specific properties (source="gvm"):
 - timestamp (string): commit timestamp
 - extra_data (string): JSON string with additional detector-specific data
 
+### JS Recon Scanner Nodes
+
+**JsReconFinding** - Non-secret findings from JavaScript reconnaissance analysis
+- finding_type (string): dependency_confusion, source_map_exposure, dom_sink, framework, dev_comment
+- severity (string): critical, high, medium, low, info
+- confidence (string): high, medium, low
+- title (string): human-readable finding title
+- detail (string): full finding detail (code snippet, URL, evidence)
+- evidence (string): matched pattern or code snippet
+- source_url (string): JS file where finding was discovered
+- base_url (string): parent BaseURL
+- source (string): always "js_recon"
+
+Note: JS Recon also creates Secret nodes with source='js_recon' (not 'jsluice') and extra fields:
+- validation_status (string): validated, invalid, unvalidated, skipped, incomplete
+- validation_info (string): JSON with validation details (scope, account info)
+- confidence (string): high, medium, low
+- detection_method (string): regex, jsluice
+- key_type (string): category of secret (cloud, payment, auth, etc.)
+
+When user asks about "JS findings", "JavaScript attack surface", "JS secrets", or "what did JS Recon find":
+- Query Secret nodes WHERE source = 'js_recon' for secrets
+- Query JsReconFinding nodes for dependency confusion, source maps, DOM sinks, frameworks
+- Query Endpoint nodes WHERE source = 'js_recon' for JS-extracted endpoints
+
 **ThreatPulse** - OTX threat intelligence pulses (named threat reports linking IPs/domains to adversaries)
 - pulse_id (string): OTX pulse ID (UNIQUE per tenant)
 - name (string): pulse title (e.g. "Lazarus Group C2 Infrastructure")
@@ -1349,6 +1374,12 @@ GVM-specific properties (source="gvm"):
 - `(d:Domain)-[:HAS_TRUFFLEHOG_SCAN]->(ts:TrufflehogScan)` - Domain has TruffleHog scan
 - `(ts:TrufflehogScan)-[:HAS_REPOSITORY]->(tr:TrufflehogRepository)` - Scan scanned repository
 - `(tr:TrufflehogRepository)-[:HAS_FINDING]->(tf:TrufflehogFinding)` - Repository has secret finding
+
+### JS Recon Relationships
+- `(b:BaseURL)-[:HAS_JS_FINDING]->(jf:JsReconFinding)` - BaseURL has JS recon finding (from pipeline scans)
+- `(d:Domain)-[:HAS_JS_FINDING]->(jf:JsReconFinding)` - Domain has JS recon finding (from uploaded files)
+- `(d:Domain)-[:HAS_SECRET]->(s:Secret)` - Domain has Secret from uploaded JS files (source='js_recon')
+- `(d:Domain)-[:HAS_ENDPOINT]->(e:Endpoint)` - Domain has Endpoint from uploaded JS files
 
 ### Gvm Exploitation Relationships
 - `(e:ExploitGvm)-[:EXPLOITED_CVE]->(c:CVE)` - GVM confirmed exploitation of CVE (only connection)
@@ -1532,15 +1563,46 @@ WHERE tr.name CONTAINS "repo-name"
 RETURN tf.detector_name, tf.file, tf.line, tf.verified, tf.redacted
 ```
 
-### ALL Secrets (Web + Git Repository)
-When user asks about "secrets" broadly, query BOTH Secret nodes AND TrufflehogFinding nodes:
+### JS Recon Findings
+```cypher
+// All JS findings for a domain
+MATCH (b:BaseURL)-[:HAS_JS_FINDING]->(jf:JsReconFinding)
+WHERE b.url CONTAINS 'target.com'
+RETURN jf.finding_type, jf.severity, jf.title, jf.detail, b.url
+ORDER BY CASE jf.severity WHEN 'critical' THEN 0 WHEN 'high' THEN 1 WHEN 'medium' THEN 2 ELSE 3 END
+
+// Dependency confusion findings (critical)
+MATCH (jf:JsReconFinding)
+WHERE jf.finding_type = 'dependency_confusion'
+RETURN jf.title, jf.detail, jf.evidence
+
+// Validated secrets from JS Recon
+MATCH (b:BaseURL)-[:HAS_SECRET]->(s:Secret)
+WHERE s.source = 'js_recon' AND s.validation_status = 'validated'
+RETURN s.secret_type, s.sample, s.validation_info, b.url, s.severity
+
+// JS-extracted endpoints
+MATCH (b:BaseURL)-[:HAS_ENDPOINT]->(e:Endpoint)
+WHERE e.source = 'js_recon'
+RETURN e.method, e.path, e.category, e.endpoint_type, b.url
+```
+
+### ALL Secrets (Web + Git Repository + JS Recon + Uploads)
+When user asks about "secrets" broadly, query Secret nodes (from both BaseURL and Domain), TrufflehogFinding nodes, AND JsReconFinding nodes:
 ```cypher
 // Combined view of all secrets from all sources
 MATCH (b:BaseURL)-[:HAS_SECRET]->(s:Secret)
-RETURN 'Web Resource' as source, s.secret_type as type, s.source_url as location, s.severity as severity
+RETURN 'Web Resource' as source, s.secret_type as type, s.source as tool, s.source_url as location, s.severity as severity
+UNION ALL
+MATCH (d:Domain)-[:HAS_SECRET]->(s:Secret)
+RETURN 'Upload' as source, s.secret_type as type, s.source as tool, s.source_url as location, s.severity as severity
 UNION ALL
 MATCH (tf:TrufflehogFinding)
-RETURN 'Git Repository' as source, tf.detector_name as type, tf.repository + '/' + tf.file as location, CASE WHEN tf.verified THEN 'high' ELSE 'medium' END as severity
+RETURN 'Git Repository' as source, tf.detector_name as type, 'trufflehog' as tool, tf.repository + '/' + tf.file as location, CASE WHEN tf.verified THEN 'high' ELSE 'medium' END as severity
+UNION ALL
+MATCH (jf:JsReconFinding)
+WHERE jf.finding_type IN ['dependency_confusion', 'source_map_exposure', 'dom_sink']
+RETURN 'JS Analysis' as source, jf.finding_type as type, 'js_recon' as tool, jf.source_url as location, jf.severity as severity
 LIMIT 50
 ```
 
@@ -1646,10 +1708,11 @@ RETURN s.name, collect(t.name) as technologies
    - Vulnerability nodes = scanner findings (nuclei, gvm, security_check)
    - CVE nodes = known CVEs linked to detected technologies
    - Use UNION ALL to combine results from both node types
-2. **CRITICAL - Query BOTH Secret AND TrufflehogFinding nodes** when user asks about "secrets":
-   - Secret nodes = secrets found in live web resources (JS files, configs) via jsluice
+2. **CRITICAL - Query Secret, TrufflehogFinding, AND JsReconFinding nodes** when user asks about "secrets":
+   - Secret nodes = secrets found in live web resources (JS files, configs) via jsluice or js_recon
    - TrufflehogFinding nodes = secrets found in git repositories via TruffleHog
-   - Use UNION ALL to combine results from both node types
+   - JsReconFinding nodes = non-secret JS findings (dependency confusion, source maps, DOM sinks, frameworks)
+   - Use UNION ALL to combine results from all node types
 3. **Always use LIMIT** to restrict results (default: 20-50)
 4. **Relationship direction matters** - follow the arrows exactly as documented
 5. **Use property filters** in WHERE clauses, not relationship traversals for filtering

@@ -1621,6 +1621,7 @@ RETURN s.name AS host, svc.name AS service, u.url AS url,
 | TrufflehogRepository | id, name | ✅ Unique (global), ✅ Tenant index |
 | TrufflehogFinding | id, detector_name, verified, file, commit, line, repository | ✅ Unique (global), ✅ Tenant index |
 | Secret | id, secret_type, severity, source, source_url, base_url, sample | ✅ Unique (global), ✅ Tenant index |
+| JsReconFinding | id, finding_type, severity, confidence, title, detail, source_url | ✅ Unique (global), ✅ Tenant index |
 
 ---
 
@@ -2211,6 +2212,71 @@ MATCH (tr:TrufflehogRepository {user_id: $userId, project_id: $projectId})
       -[:HAS_FINDING]->(tf:TrufflehogFinding)
 WITH tr, count(tf) AS total, sum(CASE WHEN tf.verified THEN 1 ELSE 0 END) AS verified
 RETURN tr.name AS repo, total, verified ORDER BY total DESC
+```
+
+---
+
+## 🔍 JS Recon Scanner
+
+JS Recon performs deep JavaScript analysis beyond inline jsluice. It creates `JsReconFinding` nodes for non-secret findings and extends `Secret` nodes with validation data.
+
+### JsReconFinding (Non-Secret JS Analysis Finding)
+
+```
+(:JsReconFinding {
+  id: "jsrf-{user_id}-{project_id}-{hash}",
+  user_id: "{user_id}",
+  project_id: "{project_id}",
+  finding_type: "dependency_confusion|source_map_exposure|dom_sink|framework|dev_comment",
+  severity: "critical|high|medium|low|info",
+  confidence: "high|medium|low",
+  title: "Human-readable finding title",
+  detail: "Full finding detail",
+  evidence: "Matched pattern or code snippet (max 500 chars)",
+  source_url: "JS file URL where finding was discovered",
+  base_url: "Parent BaseURL",
+  source: "js_recon",
+  discovered_at: "ISO timestamp"
+})
+```
+
+**Relationships:**
+- `BaseURL -[:HAS_JS_FINDING]-> JsReconFinding` (from pipeline scans)
+- `Domain -[:HAS_JS_FINDING]-> JsReconFinding` (from uploaded JS files)
+- `Domain -[:HAS_SECRET]-> Secret` (secrets from uploaded JS files, source='js_recon')
+- `Domain -[:HAS_ENDPOINT]-> Endpoint` (endpoints from uploaded JS files)
+
+### Extended Secret Properties (source='js_recon')
+
+JS Recon secrets extend the existing Secret node with:
+- `validation_status`: validated, invalid, unvalidated, skipped, incomplete
+- `validation_info`: JSON string with validator response (scope, account info)
+- `confidence`: high, medium, low
+- `detection_method`: regex, jsluice
+- `key_type`: category (cloud, payment, auth, js_service, etc.)
+
+### Constraints & Indexes
+
+```cypher
+CREATE CONSTRAINT jsreconfinding_unique IF NOT EXISTS
+FOR (jf:JsReconFinding) REQUIRE jf.id IS UNIQUE;
+
+CREATE INDEX idx_jsreconfinding_tenant IF NOT EXISTS
+FOR (jf:JsReconFinding) ON (jf.user_id, jf.project_id);
+```
+
+### Example Queries
+
+```cypher
+-- All JS Recon findings by severity
+MATCH (b:BaseURL)-[:HAS_JS_FINDING]->(jf:JsReconFinding {user_id: $userId, project_id: $projectId})
+RETURN jf.finding_type, jf.severity, jf.title, b.url
+ORDER BY CASE jf.severity WHEN 'critical' THEN 0 WHEN 'high' THEN 1 WHEN 'medium' THEN 2 ELSE 3 END
+
+-- Validated JS secrets
+MATCH (b:BaseURL)-[:HAS_SECRET]->(s:Secret {source: 'js_recon', validation_status: 'validated'})
+WHERE s.user_id = $userId AND s.project_id = $projectId
+RETURN s.secret_type, s.sample, s.validation_info, b.url
 ```
 
 ---

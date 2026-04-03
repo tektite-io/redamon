@@ -272,6 +272,12 @@ sequenceDiagram
     Recon->>Recon: Merge & classify endpoints
     Recon->>GraphBG: Background: resource enum graph update
 
+    Note over Recon,KR: GROUP 5b — JS Recon (if enabled)
+    Recon->>Recon: Download JS files (parallel)
+    Recon->>Recon: 100 regex patterns + key validation + source maps
+    Recon->>Recon: Dependency confusion + endpoint extraction + DOM sinks
+    Recon->>GraphBG: Background: js_recon graph update
+
     Note over Recon,Nuclei: GROUP 6 — Vuln Scan + MITRE
     Recon->>Docker: docker run nuclei
     Docker->>Nuclei: Start container
@@ -446,9 +452,35 @@ flowchart TB
         MergeURL --> Out4[(Endpoints + Parameters)]
     end
 
+    subgraph Phase4b["GROUP 5b — JS Recon (if enabled)"]
+        direction TB
+        Out4 --> JsRecon[JS Recon Scanner]
+
+        subgraph JsModules["5 Analyzers in Parallel"]
+            Patterns[Secret Detection<br/>100 regex patterns]
+            SrcMap[Source Map<br/>Discovery & Analysis]
+            DepConf[Dependency<br/>Confusion Check]
+            EpExtract[Endpoint<br/>Extraction]
+            FwSink[Framework +<br/>DOM Sink Detection]
+        end
+
+        JsRecon --> Patterns
+        JsRecon --> SrcMap
+        JsRecon --> DepConf
+        JsRecon --> EpExtract
+        JsRecon --> FwSink
+
+        Patterns --> KeyVal[Key Validation<br/>21 service validators]
+        KeyVal --> Out4b[(JS Findings + Secrets + Endpoints)]
+        SrcMap --> Out4b
+        DepConf --> Out4b
+        EpExtract --> Out4b
+        FwSink --> Out4b
+    end
+
     subgraph Phase5["GROUP 6 — Vulnerability Scanning"]
         direction TB
-        Out4 --> Nuclei[Nuclei Scanner]
+        Out4b --> Nuclei[Nuclei Scanner]
 
         subgraph NucleiFeatures["Scan Types"]
             CVE[CVE Detection<br/>Known vulnerabilities]
@@ -545,7 +577,8 @@ The recon pipeline uses a **fan-out / fan-in** pattern with Python's `concurrent
 | **GROUP 3b** | OSINT Enrichment (Censys + FOFA + OTX + Netlas + VirusTotal + ZoomEye + CriminalIP) | 7 parallel tasks | Needs IPs/domains from GROUP 1; runs concurrently with GROUP 3 |
 | **GROUP 4** | HTTP Probe (httpx) | Sequential (internally parallel) | Needs ports from GROUP 3 |
 | **GROUP 5** | Resource Enum (Katana + GAU + Kiterunner) | 3 tools internally parallel | Needs live URLs from GROUP 4 |
-| **GROUP 6** | Vuln Scan (Nuclei) + MITRE Enrichment | Sequential | Needs endpoints from GROUP 5 |
+| **GROUP 5b** | JS Recon Scanner (100 regex patterns, key validation, source maps, dependency confusion, endpoint extraction, DOM sinks) | 5 analyzers parallel per file | Needs JS files from GROUP 5; runs if `JS_RECON_ENABLED` |
+| **GROUP 6** | Vuln Scan (Nuclei) + MITRE Enrichment | Sequential | Needs endpoints from GROUP 5/5b |
 
 ### Background Graph DB Updates
 

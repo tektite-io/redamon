@@ -12,6 +12,8 @@ import { GvmConfirmModal } from './components/GvmConfirmModal'
 import { ReconLogsDrawer } from './components/ReconLogsDrawer'
 import { ViewTabs, type ViewMode, type TunnelStatus } from './components/ViewTabs'
 import { DataTable } from './components/DataTable'
+import { JsReconTable, exportJsReconXlsx } from './components/JsReconTable'
+import type { JsReconData } from './components/JsReconTable'
 import { ActiveSessions } from './components/ActiveSessions'
 import { RoeViewer } from './components/RoeViewer'
 import { KaliTerminal } from './components/KaliTerminal'
@@ -328,6 +330,9 @@ export default function GraphPage() {
   const tableRows = useTableData(data)
   const filterTableRows = useTableData(filterGraphData ?? undefined)
   const [globalFilter, setGlobalFilter] = useState('')
+  const [tableViewMode, setTableViewMode] = useState<'all' | 'jsRecon'>('all')
+  const [jsReconSearch, setJsReconSearch] = useState('')
+  const [jsReconData, setJsReconData] = useState<JsReconData | null>(null)
   const [activeNodeTypes, setActiveNodeTypes] = useState<Set<string>>(new Set())
   const [tableInitialized, setTableInitialized] = useState(false)
 
@@ -933,6 +938,7 @@ export default function GraphPage() {
         onEmergencyPauseAll={handleEmergencyPauseAll}
         isAnyPipelineRunning={isAnyPipelineRunning}
         isEmergencyPausing={isEmergencyPausing}
+        tunnelStatus={tunnelStatus}
         // Agent status
         agentActiveCount={agentSummary.activeCount}
         agentConversations={agentSummary.conversations}
@@ -979,6 +985,16 @@ export default function GraphPage() {
         selectedFilterId={selectedFilterId}
         onSelectFilter={setSelectedFilterId}
         onDeleteFilter={handleDeleteFilter}
+        tableViewMode={tableViewMode}
+        onTableViewModeChange={setTableViewMode}
+        jsReconSearch={jsReconSearch}
+        onJsReconSearchChange={setJsReconSearch}
+        onJsReconExportXlsx={jsReconData ? () => exportJsReconXlsx(jsReconData) : undefined}
+        jsReconMeta={jsReconData ? `${jsReconData.scan_metadata?.js_files_analyzed || 0} files${jsReconData.summary?.validated_keys?.live ? ` | ${jsReconData.summary.validated_keys.live} LIVE` : ''}` : undefined}
+        is3D={is3D}
+        showLabels={showLabels}
+        onToggle3D={setIs3D}
+        onToggleLabels={setShowLabels}
       />
 
       <div ref={bodyRef} className={styles.body}>
@@ -1019,14 +1035,18 @@ export default function GraphPage() {
               onFilterCreatedAndSelect={handleFilterCreatedAndSelect}
             />
           ) : activeView === 'table' ? (
-            <DataTable
-              data={filterGraphData ?? data}
-              isLoading={filterLoading || isLoading}
-              error={error}
-              rows={effectiveTableRows}
-              globalFilter={globalFilter}
-              onGlobalFilterChange={setGlobalFilter}
-            />
+            tableViewMode === 'jsRecon' ? (
+              <JsReconTable projectId={projectId} search={jsReconSearch} onDataLoaded={setJsReconData} />
+            ) : (
+              <DataTable
+                data={filterGraphData ?? data}
+                isLoading={filterLoading || isLoading}
+                error={error}
+                rows={effectiveTableRows}
+                globalFilter={globalFilter}
+                onGlobalFilterChange={setGlobalFilter}
+              />
+            )
           ) : activeView === 'sessions' ? (
             <ActiveSessions
               sessions={activeSessions.sessions}
@@ -1165,6 +1185,7 @@ export default function GraphPage() {
         is3D={is3D}
         showLabels={showLabels}
         activeView={activeView}
+        tableViewMode={tableViewMode}
         activeNodeTypes={activeNodeTypes}
         nodeTypeCounts={effectiveNodeTypeCounts}
         onToggleNodeType={handleToggleNodeType}

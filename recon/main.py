@@ -651,6 +651,8 @@ def run_ip_recon(target_ips: list, settings: dict) -> dict:
             "scan_timestamp": datetime.now().isoformat(),
             "target": mock_domain,
             "root_domain": mock_domain,
+            "user_id": USER_ID,
+            "project_id": PROJECT_ID,
             "ip_mode": True,
             "target_ips": target_ips,
             "expanded_ips": expanded_ips,
@@ -830,6 +832,19 @@ def run_ip_recon(target_ips: list, settings: dict) -> dict:
             save_recon_file(combined_result, output_file)
             _graph_update_bg("update_graph_from_resource_enum", combined_result, USER_ID, PROJECT_ID)
 
+    # GROUP 5b -- JS Recon (runs after resource_enum, before vuln_scan;
+    # runs even when active scans are skipped -- uploaded files don't need live targets)
+    if settings.get('JS_RECON_ENABLED', False):
+        try:
+            from recon.js_recon import run_js_recon
+            combined_result = run_js_recon(combined_result, settings=settings)
+            combined_result["metadata"]["modules_executed"].append("js_recon")
+            save_recon_file(combined_result, output_file)
+            _graph_update_bg("update_graph_from_js_recon", combined_result, USER_ID, PROJECT_ID)
+        except Exception as e:
+            print(f"[!][JsRecon] Error: {e}")
+
+    if not skip_active_scans:
         if "vuln_scan" in SCAN_MODULES:
             combined_result = run_vuln_scan(combined_result, output_file=output_file, settings=settings)
             combined_result["metadata"]["modules_executed"].append("vuln_scan")
@@ -905,6 +920,8 @@ def run_domain_recon(target: str, anonymous: bool = False, bruteforce: bool = Fa
             "scan_timestamp": datetime.now().isoformat(),
             "target": root_domain,
             "root_domain": root_domain,
+            "user_id": USER_ID,
+            "project_id": PROJECT_ID,
             "filtered_mode": filtered_mode,
             "subdomain_filter": full_subdomains if filtered_mode else [],
             "anonymous_mode": anonymous,
@@ -1269,6 +1286,19 @@ def run_domain_recon(target: str, anonymous: bool = False, bruteforce: bool = Fa
             save_recon_file(combined_result, output_file)
             _graph_update_bg("update_graph_from_resource_enum", combined_result, USER_ID, PROJECT_ID)
 
+    # GROUP 5b — JS Recon (runs after resource_enum, before vuln_scan;
+    # runs even when active scans are skipped -- uploaded files don't need live targets)
+    if _settings.get('JS_RECON_ENABLED', False):
+        try:
+            from recon.js_recon import run_js_recon
+            combined_result = run_js_recon(combined_result, settings=_settings)
+            combined_result["metadata"]["modules_executed"].append("js_recon")
+            save_recon_file(combined_result, output_file)
+            _graph_update_bg("update_graph_from_js_recon", combined_result, USER_ID, PROJECT_ID)
+        except Exception as e:
+            print(f"[!][JsRecon] Error: {e}")
+
+    if not skip_active_scans:
         # GROUP 6 — Vuln Scan + MITRE (sequential, Nuclei internally parallel)
         if "vuln_scan" in SCAN_MODULES:
             combined_result = run_vuln_scan(combined_result, output_file=output_file, settings=_settings)
@@ -1654,6 +1684,36 @@ def main():
                     with open(output_file, 'w') as f:
                         json.dump(domain_result, f, indent=2)
 
+        # GROUP 5b — JS Recon (runs after resource_enum, before vuln_scan;
+        # runs even when active scans are skipped -- uploaded files don't need live targets)
+        if _settings.get('JS_RECON_ENABLED', False):
+            try:
+                from recon.js_recon import run_js_recon
+                domain_result = run_js_recon(domain_result, settings=_settings)
+                if "metadata" in domain_result and "modules_executed" in domain_result["metadata"]:
+                    if "js_recon" not in domain_result["metadata"]["modules_executed"]:
+                        domain_result["metadata"]["modules_executed"].append("js_recon")
+                with open(output_file, 'w') as f:
+                    json.dump(domain_result, f, indent=2)
+
+                if UPDATE_GRAPH_DB:
+                    try:
+                        from graph_db import Neo4jClient
+                        with Neo4jClient() as graph_client:
+                            if graph_client.verify_connection():
+                                graph_client.update_graph_from_js_recon(domain_result, USER_ID, PROJECT_ID)
+                                domain_result["metadata"]["graph_db_js_recon_updated"] = True
+                                print(f"[+][graph-db] Graph database updated with JS Recon data")
+                    except Exception as e:
+                        print(f"[!][graph-db] JS Recon graph update failed: {e}")
+                        domain_result["metadata"]["graph_db_js_recon_updated"] = False
+
+                    with open(output_file, 'w') as f:
+                        json.dump(domain_result, f, indent=2)
+            except Exception as e:
+                print(f"[!][JsRecon] Error: {e}")
+
+        if not skip_active_scans:
             # Run vuln_scan if in SCAN_MODULES (when domain_discovery is skipped)
             # vuln_scan automatically includes MITRE CWE/CAPEC enrichment
             if "vuln_scan" in SCAN_MODULES:

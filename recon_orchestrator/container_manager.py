@@ -224,6 +224,9 @@ class ContainerManager:
                     f"{Path(recon_path).parent}/graph_db": {"bind": "/app/graph_db", "mode": "ro"},
                     # Mount /tmp for Docker-in-Docker temp files (avoids spaces in paths)
                     "/tmp/redamon": {"bind": "/tmp/redamon", "mode": "rw"},
+                    # JS Recon shared volumes with webapp
+                    "redamon_js_recon_uploads": {"bind": "/data/js-recon-uploads", "mode": "ro"},
+                    "redamon_js_recon_custom": {"bind": "/data/js-recon-custom", "mode": "ro"},
                 },
                 command="python /app/recon/main.py",
             )

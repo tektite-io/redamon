@@ -548,6 +548,7 @@ The recon orchestrator automatically detects scan phases from log output:
 | 2 | Port Scanning |
 | 3 | HTTP Probing |
 | 4 | Resource Enumeration |
+| 4b | JS Recon (post-resource_enum, if enabled) |
 | 5 | Vulnerability Scanning |
 | 6 | MITRE Enrichment |
 | 7 | GitHub Secret Hunt |

@@ -13,7 +13,7 @@
 
 <p align="center">
   <a href="https://github.com/samugit83/redamon/stargazers"><img height="24" src="https://img.shields.io/github/stars/samugit83/redamon?style=flat&color=2E8B57&label=Stars" alt="GitHub Stars"/></a>
-  <img height="24" src="https://img.shields.io/badge/v3.3.0-release-2E8B57?style=flat" alt="Version 3.3.0"/>
+  <img height="24" src="https://img.shields.io/badge/v3.4.0-release-2E8B57?style=flat" alt="Version 3.4.0"/>
   <img height="24" src="https://img.shields.io/badge/WARNING-SECURITY%20TOOL-B22222?style=flat" alt="Security Tool Warning"/>
   <img height="24" src="https://img.shields.io/badge/LICENSE-MIT-4169A1?style=flat" alt="MIT License"/>
   <img height="24" src="https://img.shields.io/badge/END--TO--END-PIPELINE-A01025?style=flat" alt="End-to-End Pipeline"/>
@@ -320,6 +320,13 @@ A fully automated, **parallelized** scanning engine running inside a Kali Linux 
 | | **Directory Fuzzing** | FFuf | Active | Sequential (post-jsluice) |
 | | **Parameter Discovery** | Arjun | Active | Methods parallel (GET/POST/JSON/XML) |
 | | **API Discovery** | Kiterunner | Active | Sequential per wordlist |
+| **JS Recon** | **JS Secret Detection** | 100 regex patterns + custom uploads | Passive | Parallel per file |
+| | **Key Validation** | 21 service validators (AWS, GitHub, Stripe, etc.) | Active | Rate-limited (1/sec/svc) |
+| | **Source Map Discovery** | Comment, header, path probing | Active | Per JS file |
+| | **Dependency Confusion** | npm registry check | Passive | Per scoped package |
+| | **Endpoint Extraction** | REST, GraphQL, WebSocket, router patterns | Passive | Per JS file |
+| | **Framework Fingerprinting** | 12 built-in + custom signatures | Passive | Per JS file |
+| | **DOM Sink Detection** | 17 XSS/prototype pollution patterns | Passive | Per JS file |
 | **Vulnerability Scanning** | **Vulnerability Scanning** | Nuclei (9,000+ templates + DAST + custom template upload) | Active | Internal parallel |
 | **Security Checks** | **Security Checks** | WAF bypass, direct IP access, TLS expiry, missing headers, cache-control | Active | Parallel workers |
 | **CVE & MITRE** | **CVE Enrichment** | NVD API, Vulners API | Passive | Sequential |

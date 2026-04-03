@@ -55,7 +55,14 @@ Integrate **[TOOL_NAME]** into the RedAmon recon pipeline.
 
 9. **Output format** — Study how the tool's results merge into the combined recon JSON output in `recon/main.py`. Determine if results extend an existing section (e.g., subdomains into `discover_subdomains()` return) or need a new section in the combined output.
 
-10. **Parallelization opportunities (fan-out / fan-in)** — Study the execution flow in `recon/main.py` and determine whether the new tool can run **in parallel** with other tools in the same phase. Look for:
+10. **Report integration** — The reports page (`/reports`) generates HTML reports from Neo4j data. Study the report pipeline to plan how the new tool's findings will appear:
+   - `webapp/src/lib/report/reportData.ts` — contains query functions that pull tool data from Neo4j (e.g., `queryTrufflehog`, `querySecrets`, `queryJsRecon`, `queryOtx`), the `ReportData` interface, the `gatherReportData()` orchestrator, and the **risk score** calculation. Each tool has a dedicated `queryX()` function that runs Cypher queries filtered by `{project_id: $pid}` and returns structured data (totals, breakdowns by severity/type, and capped findings lists — typically max 50 items).
+   - `webapp/src/lib/report/reportTemplate.ts` — contains `renderX()` functions that produce conditional HTML sections (only rendered if findings > 0), and the dynamic TOC builder that includes/excludes sections based on data availability.
+   - `webapp/src/app/api/projects/[id]/reports/route.ts` — the POST handler that orchestrates data gathering, optional LLM narrative generation (via `condenseForAgent()`), and HTML generation. The `condenseForAgent()` function sends a summarized subset (15-20 items per tool) to the agent service for narrative text.
+   - **Risk score**: Every tool contributes a weighted score to the overall risk metric. Study the `rawRisk` calculation in `reportData.ts` to determine the appropriate weight for the new tool (e.g., Trufflehog: verified=80pts, unverified=30pts; OTX: pulses=20pts, malware=50pts; JsRecon: high/critical=40pts).
+   - **Existing pattern summary**: For each tool, there is (1) a TypeScript interface for its findings, (2) a `queryX()` function with Neo4j Cypher, (3) a section in the `ReportData` interface, (4) a call in `gatherReportData()`, (5) a `renderX()` function, (6) a TOC entry, (7) a risk score contribution, and (8) a condensed payload in `condenseForAgent()`.
+
+11. **Parallelization opportunities (fan-out / fan-in)** — Study the execution flow in `recon/main.py` and determine whether the new tool can run **in parallel** with other tools in the same phase. Look for:
    - **Fan-out**: Can this tool be launched concurrently with other independent tools that share the same inputs? For example, multiple subdomain discovery sources (crt.sh, HackerTarget, Subfinder) all take the root domain as input and can run simultaneously. If the new tool has no dependency on the output of another tool in the same phase, it should fan out alongside them (e.g., using `concurrent.futures.ThreadPoolExecutor` or `asyncio.gather`).
    - **Fan-in**: After parallel execution, results from multiple tools must be merged/deduplicated before the next phase consumes them. Determine how the new tool's results join the fan-in point — does it contribute to an existing aggregation (e.g., a shared `subdomains` set) or require a new merge step?
    - **Dependencies that block parallelization**: If the tool depends on results from a prior tool (e.g., port scanning needs discovered hosts, URL crawling needs live subdomains), it must wait for that phase to complete — do NOT parallelize across dependency boundaries.
@@ -89,6 +96,19 @@ Integrate **[TOOL_NAME]** into the RedAmon recon pipeline.
   4. `webapp/src/app/graph/config/colors.ts` — add entry to `NODE_SIZES` if the new node type needs a non-default size
   5. `webapp/src/app/graph/components/DataTable/DataTableToolbar.tsx` — add the new node type to the type filter dropdown so users can filter by it
   6. `webapp/src/app/graph/components/PageBottomBar/PageBottomBar.tsx` — add the new node type to the legend if applicable
+- [ ] **Report data layer** (`webapp/src/lib/report/reportData.ts`):
+  1. Add a TypeScript interface for the tool's findings (e.g., `MyToolRecord`) with all fields queried from Neo4j
+  2. Add a new section to the `ReportData` interface (e.g., `myTool: { totalFindings: number; bySeverity: ...; findings: MyToolRecord[] }`)
+  3. Create a `queryMyTool(session, pid)` function with Cypher queries — must filter by `{project_id: $pid}`, include summary counts + breakdowns, and cap detailed findings (typically 50 items)
+  4. Call the new query function in `gatherReportData()` and include its result in the returned `ReportData` object
+  5. Add the tool's weighted contribution to the `rawRisk` score calculation — choose weights consistent with existing tools (study the risk score block for reference)
+  6. If the tool produces secrets/credentials, also add its count to the `metrics.secretsExposed` total
+- [ ] **Report template** (`webapp/src/lib/report/reportTemplate.ts`):
+  1. Create a `renderMyTool(data: ReportData): string` function that returns an HTML section — must be **conditional** (return empty string if no findings), include a `page-break` div, and use a unique `id` for the section anchor
+  2. Add the section to the **dynamic TOC** builder (look for `dynamicSections.push(...)`) — only include if findings > 0
+  3. Call `renderMyTool(data)` in the main `generateReportHtml()` function alongside the other render calls
+- [ ] **Report LLM condensing** (`webapp/src/app/api/projects/[id]/reports/route.ts`):
+  1. Add the tool's summarized data to the `condenseForAgent()` payload — include totals, breakdowns, and a capped subset of findings (15-20 items max) so the LLM can generate narrative text about the tool's results
 - [ ] If tool needs API keys: add field to `UserSettings` model in Prisma, fetch at runtime via `_fetch_user_api_key()`, show key status banner in frontend section
 - [ ] If tool is active (sends traffic to target): add overrides in `apply_stealth_overrides()` in `recon/project_settings.py`
 - [ ] If tool is involved in subdomain enumeration: results may include out-of-scope subdomains (e.g., related but not under the target root domain). These must be split into in-scope `subdomains` vs `external_domains` — follow the existing pattern in `recon/domain_recon.py` where discovered subdomains are checked against the target domain and out-of-scope entries are collected separately as external domains
