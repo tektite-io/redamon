@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [3.9.3] - 2026-04-14
+
+### Added
+
+- **Parallel Partial Recon** -- run up to 12 partial recon scans concurrently per project. Each run gets a unique `run_id` (UUID), independent container, config file, and SSE log stream. Key changes:
+  - **Concurrency limit** -- backend enforces a maximum of 12 simultaneous partial recon runs per project
+  - **Mutual exclusion preserved** -- cannot start partial recon while full pipeline is running and vice versa
+  - **Per-run stop isolation** -- stopping one partial recon no longer kills sub-containers (naabu, httpx, nuclei, etc.) from other running scans
+  - **Auto-cleanup** -- completed/errored runs are automatically removed from state after 60 seconds
+- **Partial Recon badges** -- shared `PartialReconBadges` component used in both Graph toolbar and Project Settings header bar. Shows individual badges (up to 3) with tool name, spinner, logs toggle, and stop button. Groups into a dropdown panel when 4+ runs are active
+- **Logs drawer in Project Settings** -- launching partial recon from the Workflow View no longer redirects to the Graph page. Instead, a logs drawer opens in-place with real-time SSE streaming. Each new launch switches the drawer to the latest run's logs
+- **Running indicator on Workflow nodes** -- tool nodes in the Workflow View show a yellow spinning loader instead of the green play button while their tool has an active partial recon run. The play button is not clickable during execution
+- **Start Recon Pipeline disabled during partial recon** -- the "Start Recon Pipeline" button in Project Settings is disabled with a tooltip when any partial recon is running
+
+### Changed
+
+- **SSE connection economy** -- only one SSE log connection is open at a time (the currently visible drawer), avoiding the browser's ~6 concurrent connection limit. Logs for other runs are kept in memory when switching between drawers
+- **New API endpoints** -- partial recon endpoints now use `run_id` path parameter: `GET /partial/all`, `GET /partial/{run_id}/status`, `POST /partial/{run_id}/stop`, `GET /partial/{run_id}/logs`. Old single-run endpoints removed
+
+---
+
 ## [3.9.2] - 2026-04-13
 
 ### Added

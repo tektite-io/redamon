@@ -21,7 +21,7 @@ import { GraphViews } from './components/GraphViews'
 import { GitHubStarBanner } from './components/GitHubStarBanner'
 import { useGraphData, useDimensions, useNodeSelection, useTableData, useGraphViews } from './hooks'
 import { exportToExcel } from './utils/exportExcel'
-import { useTheme, useSession, useReconStatus, useReconSSE, useGvmStatus, useGvmSSE, useGithubHuntStatus, useGithubHuntSSE, useTrufflehogStatus, useTrufflehogSSE, useActiveSessions, usePartialReconStatus, usePartialReconSSE } from '@/hooks'
+import { useTheme, useSession, useReconStatus, useReconSSE, useGvmStatus, useGvmSSE, useGithubHuntStatus, useGithubHuntSSE, useTrufflehogStatus, useTrufflehogSSE, useActiveSessions, useMultiPartialReconStatus, useMultiPartialReconSSE } from '@/hooks'
 import { useProjectById } from '@/hooks/useProjects'
 import { useProject } from '@/providers/ProjectProvider'
 import { GVM_PHASES, GITHUB_HUNT_PHASES, TRUFFLEHOG_PHASES, PARTIAL_RECON_PHASE_MAP } from '@/lib/recon-types'
@@ -46,7 +46,7 @@ export default function GraphPage() {
   const [showLabels, setShowLabels] = useState(true)
   const [isAIOpen, setIsAIOpen] = useState(false)
   const [isReconModalOpen, setIsReconModalOpen] = useState(false)
-  const [activeLogsDrawer, setActiveLogsDrawer] = useState<'recon' | 'gvm' | 'githubHunt' | 'trufflehog' | 'partialRecon' | null>(null)
+  const [activeLogsDrawer, setActiveLogsDrawer] = useState<'recon' | 'gvm' | 'githubHunt' | 'trufflehog' | `partialRecon:${string}` | null>(null)
   const [hasReconData, setHasReconData] = useState(false)
   const [hasGvmData, setHasGvmData] = useState(false)
   const [hasGithubHuntData, setHasGithubHuntData] = useState(false)
@@ -248,26 +248,30 @@ export default function GraphPage() {
     enabled: reconState?.status === 'running' || reconState?.status === 'starting' || reconState?.status === 'paused' || reconState?.status === 'stopping',
   })
 
-  // Partial Recon status hook
+  // Partial Recon multi-run status hook
   const {
-    state: partialReconState,
+    runs: allPartialReconRuns,
+    activeRuns: activePartialRecons,
+    isAnyRunning: isPartialReconRunning,
     stopPartialRecon,
-  } = usePartialReconStatus({
+  } = useMultiPartialReconStatus({
     projectId,
     enabled: !!projectId,
   })
 
-  const isPartialReconRunning = partialReconState?.status === 'running' || partialReconState?.status === 'starting'
+  // Derive the active run_id for SSE from the drawer state
+  const activePartialReconRunId = activeLogsDrawer?.startsWith('partialRecon:')
+    ? activeLogsDrawer.slice('partialRecon:'.length)
+    : null
 
-  // Partial Recon logs SSE hook
+  // Partial Recon multi-run SSE hook (only connects to the visible drawer's run)
   const {
-    logs: partialReconLogs,
-    currentPhase: partialReconCurrentPhase,
-    currentPhaseNumber: partialReconCurrentPhaseNumber,
-    clearLogs: clearPartialReconLogs,
-  } = usePartialReconSSE({
+    logsMap: partialReconLogsMap,
+    phaseMap: partialReconPhaseMap,
+    clearLogsForRun: clearPartialReconLogsForRun,
+  } = useMultiPartialReconSSE({
     projectId,
-    enabled: partialReconState?.status === 'running' || partialReconState?.status === 'starting' || partialReconState?.status === 'stopping',
+    activeRunId: activePartialReconRunId,
   })
 
   // GVM status hook
@@ -713,12 +717,23 @@ export default function GraphPage() {
     }
   }, [trufflehogState?.status, refetchAfterCompletion, checkTrufflehogData])
 
-  // Refresh graph when partial recon completes
+  // Refresh graph when any partial recon run completes (detected via status changes in polling)
+  const prevPartialRunStatusesRef = useRef<Record<string, string>>({})
   useEffect(() => {
-    if (partialReconState?.status === 'completed' || partialReconState?.status === 'error') {
+    let shouldRefetch = false
+    const newStatuses: Record<string, string> = {}
+    for (const run of allPartialReconRuns) {
+      newStatuses[run.run_id] = run.status
+      const prev = prevPartialRunStatusesRef.current[run.run_id]
+      if (prev && prev !== run.status && (run.status === 'completed' || run.status === 'error')) {
+        shouldRefetch = true
+      }
+    }
+    prevPartialRunStatusesRef.current = newStatuses
+    if (shouldRefetch) {
       return refetchAfterCompletion()
     }
-  }, [partialReconState?.status, refetchAfterCompletion])
+  }, [allPartialReconRuns, refetchAfterCompletion])
 
   const handleToggleAI = useCallback(() => {
     setIsAIOpen((prev) => !prev)
@@ -788,7 +803,7 @@ export default function GraphPage() {
     }
     const openLogs = searchParams.get('openlogs')
     if (openLogs && projectId) {
-      setActiveLogsDrawer(openLogs as 'recon' | 'gvm' | 'githubHunt' | 'trufflehog' | 'partialRecon')
+      setActiveLogsDrawer(openLogs as 'recon' | 'gvm' | 'githubHunt' | 'trufflehog' | `partialRecon:${string}`)
       router.replace(`/graph?project=${projectId}`)
     }
   }, [searchParams, projectId, router])
@@ -895,17 +910,23 @@ export default function GraphPage() {
     setActiveLogsDrawer(prev => prev === 'trufflehog' ? null : 'trufflehog')
   }, [])
 
-  // Auto-open partial recon logs drawer when it starts running
-  const prevPartialStatus = useRef(partialReconState?.status)
+  // Auto-open partial recon logs drawer when a new run appears or transitions to running
+  const prevPartialRunStatusMapRef = useRef<Record<string, string>>({})
   useEffect(() => {
-    const prev = prevPartialStatus.current
-    const curr = partialReconState?.status
-    prevPartialStatus.current = curr
-    // Open drawer when transitioning from idle/starting to running
-    if (curr === 'running' && prev !== 'running') {
-      setActiveLogsDrawer('partialRecon')
+    for (const run of activePartialRecons) {
+      const prev = prevPartialRunStatusMapRef.current[run.run_id]
+      // Open drawer for newly appeared runs or runs transitioning to 'running'
+      if (!prev || (run.status === 'running' && prev !== 'running')) {
+        setActiveLogsDrawer(`partialRecon:${run.run_id}`)
+        break // Only auto-open one at a time
+      }
     }
-  }, [partialReconState?.status])
+    const newMap: Record<string, string> = {}
+    for (const run of activePartialRecons) {
+      newMap[run.run_id] = run.status
+    }
+    prevPartialRunStatusMapRef.current = newMap
+  }, [activePartialRecons])
 
   // Pause/Resume/Stop handlers
   const handlePauseRecon = useCallback(async () => { await pauseRecon() }, [pauseRecon])
@@ -922,9 +943,9 @@ export default function GraphPage() {
   const handleStopTrufflehog = useCallback(async () => { await stopTrufflehog() }, [stopTrufflehog])
 
   // Partial Recon handlers
-  const handleStopPartialRecon = useCallback(async () => { await stopPartialRecon() }, [stopPartialRecon])
-  const handleTogglePartialReconLogs = useCallback(() => {
-    setActiveLogsDrawer(prev => prev === 'partialRecon' ? null : 'partialRecon')
+  const handleStopPartialRecon = useCallback(async (runId: string) => { await stopPartialRecon(runId) }, [stopPartialRecon])
+  const handleTogglePartialReconLogs = useCallback((runId: string) => {
+    setActiveLogsDrawer(prev => prev === `partialRecon:${runId}` ? null : `partialRecon:${runId}`)
   }, [])
 
   // Emergency Pause All — freezes every running pipeline and agent at once
@@ -953,13 +974,15 @@ export default function GraphPage() {
     if (trufflehogState?.status === 'running' || trufflehogState?.status === 'starting') {
       tasks.push(pauseTrufflehog())
     }
-    if (partialReconState?.status === 'running' || partialReconState?.status === 'starting') {
-      tasks.push(stopPartialRecon())
+    for (const run of activePartialRecons) {
+      if (run.status === 'running' || run.status === 'starting') {
+        tasks.push(stopPartialRecon(run.run_id))
+      }
     }
     // Stop all running AI agent conversations
     tasks.push(fetch('/api/agent/emergency-stop-all', { method: 'POST' }))
     await Promise.allSettled(tasks)
-  }, [reconState?.status, gvmState?.status, githubHuntState?.status, trufflehogState?.status, partialReconState?.status, pauseRecon, pauseGvm, pauseGithubHunt, pauseTrufflehog, stopPartialRecon])
+  }, [reconState?.status, gvmState?.status, githubHuntState?.status, trufflehogState?.status, activePartialRecons, pauseRecon, pauseGvm, pauseGithubHunt, pauseTrufflehog, stopPartialRecon])
 
   // Show message if no project is selected
   if (!projectLoading && !projectId) {
@@ -1030,10 +1053,9 @@ export default function GraphPage() {
         trufflehogStatus={trufflehogState?.status || 'idle'}
         hasTrufflehogData={hasTrufflehogData}
         isTrufflehogLogsOpen={activeLogsDrawer === 'trufflehog'}
-        // Partial Recon props
-        partialReconStatus={partialReconState?.status || 'idle'}
-        partialReconToolId={partialReconState?.tool_id || ''}
-        isPartialReconLogsOpen={activeLogsDrawer === 'partialRecon'}
+        // Partial Recon props (multi-run)
+        activePartialRecons={activePartialRecons}
+        activePartialReconLogsDrawer={activePartialReconRunId}
         onStopPartialRecon={handleStopPartialRecon}
         onTogglePartialReconLogs={handleTogglePartialReconLogs}
         // Other Scans modal
@@ -1246,21 +1268,24 @@ export default function GraphPage() {
         totalPhases={3}
       />
 
-      <ReconLogsDrawer
-        isOpen={activeLogsDrawer === 'partialRecon'}
-        onClose={() => setActiveLogsDrawer(null)}
-        logs={partialReconLogs}
-        currentPhase={partialReconCurrentPhase}
-        currentPhaseNumber={partialReconCurrentPhaseNumber}
-        status={(partialReconState?.status as ReconStatus) || 'idle'}
-        errorMessage={partialReconState?.error}
-        onClearLogs={clearPartialReconLogs}
-        onStop={handleStopPartialRecon}
-        title={`Partial Recon: ${WORKFLOW_TOOLS.find(t => t.id === partialReconState?.tool_id)?.label || 'Running'}`}
-        phases={PARTIAL_RECON_PHASE_MAP[partialReconState?.tool_id || ''] || ['Running']}
-        totalPhases={(PARTIAL_RECON_PHASE_MAP[partialReconState?.tool_id || ''] || ['Running']).length}
-        hidePhaseProgress
-      />
+      {activePartialRecons.map(run => (
+        <ReconLogsDrawer
+          key={run.run_id}
+          isOpen={activeLogsDrawer === `partialRecon:${run.run_id}`}
+          onClose={() => setActiveLogsDrawer(null)}
+          logs={partialReconLogsMap[run.run_id] || []}
+          currentPhase={partialReconPhaseMap[run.run_id]?.phase || null}
+          currentPhaseNumber={partialReconPhaseMap[run.run_id]?.phaseNumber || null}
+          status={(run.status as ReconStatus) || 'idle'}
+          errorMessage={run.error}
+          onClearLogs={() => clearPartialReconLogsForRun(run.run_id)}
+          onStop={() => handleStopPartialRecon(run.run_id)}
+          title={`Partial Recon: ${WORKFLOW_TOOLS.find(t => t.id === run.tool_id)?.label || 'Running'}`}
+          phases={PARTIAL_RECON_PHASE_MAP[run.tool_id || ''] || ['Running']}
+          totalPhases={(PARTIAL_RECON_PHASE_MAP[run.tool_id || ''] || ['Running']).length}
+          hidePhaseProgress
+        />
+      ))}
 
       <AIAssistantDrawer
         isOpen={isAIOpen}

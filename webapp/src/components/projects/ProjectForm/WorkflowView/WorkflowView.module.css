@@ -189,6 +189,34 @@
   color: #15803d;
 }
 
+.partialReconRunning {
+  cursor: default;
+  opacity: 0.9;
+  color: #facc15;
+}
+
+.partialReconRunning:hover {
+  transform: none;
+  color: #facc15;
+}
+
+:global([data-theme="light"]) .partialReconRunning {
+  color: #ca8a04;
+}
+
+:global([data-theme="light"]) .partialReconRunning:hover {
+  color: #ca8a04;
+}
+
+@keyframes partialReconSpin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.partialReconSpinner {
+  animation: partialReconSpin 1s linear infinite;
+}
+
 .badgeActive {
   font-size: 8px;
   font-weight: 600;

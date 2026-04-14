@@ -3,14 +3,14 @@ import { NextRequest, NextResponse } from 'next/server'
 const RECON_ORCHESTRATOR_URL = process.env.RECON_ORCHESTRATOR_URL || 'http://localhost:8010'
 
 interface RouteParams {
-  params: Promise<{ projectId: string }>
+  params: Promise<{ projectId: string; runId: string }>
 }
 
 export async function GET(request: NextRequest, { params }: RouteParams) {
   try {
-    const { projectId } = await params
+    const { projectId, runId } = await params
 
-    const response = await fetch(`${RECON_ORCHESTRATOR_URL}/recon/${projectId}/partial/status`, {
+    const response = await fetch(`${RECON_ORCHESTRATOR_URL}/recon/${projectId}/partial/${runId}/status`, {
       method: 'GET',
       headers: { 'Content-Type': 'application/json' },
     })
@@ -27,10 +27,11 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     return NextResponse.json(data)
 
   } catch (error) {
-    // If orchestrator is not available, return idle status
     if (error instanceof TypeError && error.message.includes('fetch')) {
+      const { projectId, runId } = await params
       return NextResponse.json({
-        project_id: (await params).projectId,
+        project_id: projectId,
+        run_id: runId,
         tool_id: '',
         status: 'idle',
         container_id: null,

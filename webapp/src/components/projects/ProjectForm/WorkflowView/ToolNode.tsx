@@ -2,7 +2,7 @@
 
 import { memo, useCallback } from 'react'
 import { Handle, Position, type NodeProps } from '@xyflow/react'
-import { AlertTriangle, Settings, Play } from 'lucide-react'
+import { AlertTriangle, Settings, Play, Loader2 } from 'lucide-react'
 import styles from './WorkflowView.module.css'
 
 interface ToolNodeData {
@@ -19,6 +19,7 @@ interface ToolNodeData {
   onOpenSettings?: (toolId: string) => void
   onRunPartial?: (toolId: string) => void
   partialReconSupported?: boolean
+  isRunningPartial?: boolean
   onNodeClick?: (nodeId: string) => void
   highlighted?: boolean
   dimmed?: boolean
@@ -38,6 +39,7 @@ function ToolNodeComponent({ data }: NodeProps) {
     onOpenSettings,
     onRunPartial,
     partialReconSupported,
+    isRunningPartial,
     onNodeClick,
     highlighted,
     dimmed,
@@ -102,13 +104,22 @@ function ToolNodeComponent({ data }: NodeProps) {
       </div>
 
       {partialReconSupported && enabled && (
-        <span
-          className={styles.partialReconPlay}
-          onClick={handlePlayClick}
-          title="Run partial recon"
-        >
-          <Play size={12} fill="currentColor" />
-        </span>
+        isRunningPartial ? (
+          <span
+            className={`${styles.partialReconPlay} ${styles.partialReconRunning}`}
+            title="Partial recon running..."
+          >
+            <Loader2 size={12} className={styles.partialReconSpinner} />
+          </span>
+        ) : (
+          <span
+            className={styles.partialReconPlay}
+            onClick={handlePlayClick}
+            title="Run partial recon"
+          >
+            <Play size={12} fill="currentColor" />
+          </span>
+        )
       )}
 
       <Handle type="source" position={Position.Right} className={styles.handle} />

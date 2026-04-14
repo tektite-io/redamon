@@ -30,6 +30,7 @@ from models import (
     PartialReconStartRequest,
     PartialReconState,
     PartialReconStatus,
+    PartialReconListResponse,
 )
 
 # Configure logging
@@ -551,35 +552,44 @@ async def start_partial_recon(project_id: str, request: PartialReconStartRequest
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.get("/recon/{project_id}/partial/status", response_model=PartialReconState)
-async def get_partial_recon_status(project_id: str):
-    """Get current status of a partial recon process"""
+@app.get("/recon/{project_id}/partial/all", response_model=PartialReconListResponse)
+async def list_partial_recons(project_id: str):
+    """List all partial recon runs for a project"""
     if not container_manager:
         raise HTTPException(status_code=503, detail="Service not initialized")
-    return await container_manager.get_partial_recon_status(project_id)
+    runs = await container_manager.get_all_partial_recon_statuses(project_id)
+    return PartialReconListResponse(project_id=project_id, runs=runs)
 
 
-@app.post("/recon/{project_id}/partial/stop", response_model=PartialReconState)
-async def stop_partial_recon(project_id: str):
-    """Stop a running partial recon process"""
+@app.get("/recon/{project_id}/partial/{run_id}/status", response_model=PartialReconState)
+async def get_partial_recon_status(project_id: str, run_id: str):
+    """Get current status of a specific partial recon run"""
     if not container_manager:
         raise HTTPException(status_code=503, detail="Service not initialized")
-    return await container_manager.stop_partial_recon(project_id)
+    return await container_manager.get_partial_recon_status(project_id, run_id)
 
 
-@app.get("/recon/{project_id}/partial/logs")
-async def stream_partial_logs(project_id: str):
-    """Stream logs from a partial recon container via SSE"""
+@app.post("/recon/{project_id}/partial/{run_id}/stop", response_model=PartialReconState)
+async def stop_partial_recon(project_id: str, run_id: str):
+    """Stop a specific partial recon run"""
+    if not container_manager:
+        raise HTTPException(status_code=503, detail="Service not initialized")
+    return await container_manager.stop_partial_recon(project_id, run_id)
+
+
+@app.get("/recon/{project_id}/partial/{run_id}/logs")
+async def stream_partial_logs(project_id: str, run_id: str):
+    """Stream logs from a specific partial recon container via SSE"""
     if not container_manager:
         raise HTTPException(status_code=503, detail="Service not initialized")
 
-    state = await container_manager.get_partial_recon_status(project_id)
+    state = await container_manager.get_partial_recon_status(project_id, run_id)
     if state.status == PartialReconStatus.IDLE:
         raise HTTPException(status_code=404, detail="No partial recon process found")
 
     async def event_generator():
         try:
-            async for event in container_manager.stream_partial_logs(project_id):
+            async for event in container_manager.stream_partial_logs(project_id, run_id):
                 yield {
                     "event": "log",
                     "data": json.dumps({
@@ -598,7 +608,7 @@ async def stream_partial_logs(project_id: str):
                 "data": json.dumps({"error": str(e)}),
             }
 
-        final_state = await container_manager.get_partial_recon_status(project_id)
+        final_state = await container_manager.get_partial_recon_status(project_id, run_id)
         yield {
             "event": "complete",
             "data": json.dumps({

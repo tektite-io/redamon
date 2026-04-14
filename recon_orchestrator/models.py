@@ -232,6 +232,7 @@ class PartialReconStartRequest(BaseModel):
 class PartialReconState(BaseModel):
     """Current state of a partial recon process"""
     project_id: str
+    run_id: str = ""
     tool_id: str = ""
     status: PartialReconStatus = PartialReconStatus.IDLE
     container_id: Optional[str] = None
@@ -239,3 +240,9 @@ class PartialReconState(BaseModel):
     completed_at: Optional[datetime] = None
     error: Optional[str] = None
     stats: Optional[dict] = None
+
+
+class PartialReconListResponse(BaseModel):
+    """Response listing all partial recon runs for a project"""
+    project_id: str
+    runs: list[PartialReconState]

@@ -5,6 +5,7 @@ import asyncio
 import logging
 import os
 import re
+import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import AsyncGenerator, Optional
@@ -25,6 +26,9 @@ logger = logging.getLogger(__name__)
 
 # ANSI escape code pattern for stripping terminal colors from logs
 ANSI_ESCAPE = re.compile(r'\x1b\[[0-9;]*m|\033\[[0-9;]*m')
+
+# Maximum number of concurrent partial recon runs per project
+MAX_PARALLEL_PARTIAL_RECONS = 12
 
 # Sub-container images spawned by recon (Docker-in-Docker sibling containers)
 SUB_CONTAINER_IMAGES = [
@@ -84,7 +88,8 @@ class ContainerManager:
         self.github_hunt_image = github_hunt_image
         self.trufflehog_image = trufflehog_image
         self.running_states: dict[str, ReconState] = {}
-        self.partial_recon_states: dict[str, PartialReconState] = {}
+        # Nested dict: outer key = project_id, inner key = run_id
+        self.partial_recon_states: dict[str, dict[str, PartialReconState]] = {}
         self.gvm_states: dict[str, GvmState] = {}
         self.github_hunt_states: dict[str, GithubHuntState] = {}
         self.trufflehog_states: dict[str, TrufflehogState] = {}
@@ -171,10 +176,9 @@ class ContainerManager:
         if current_state.status in (ReconStatus.RUNNING, ReconStatus.PAUSED):
             raise ValueError(f"Recon already active for project {project_id}")
 
-        # Mutual exclusion: block if partial recon is running
-        partial_state = await self.get_partial_recon_status(project_id)
-        if partial_state.status in (PartialReconStatus.RUNNING, PartialReconStatus.STARTING):
-            raise ValueError(f"Partial recon is running for project {project_id}. Stop it first.")
+        # Mutual exclusion: block if any partial recon is running
+        if self._count_active_partial_recons(project_id) > 0:
+            raise ValueError(f"Partial recon(s) running for project {project_id}. Stop them first.")
 
         # Clean up any existing container
         container_name = self._get_container_name(project_id)
@@ -552,11 +556,12 @@ class ContainerManager:
                 await self.stop_recon(project_id, timeout=5)
             except Exception as e:
                 logger.error(f"Error cleaning up recon {project_id}: {e}")
-        for project_id in list(self.partial_recon_states.keys()):
-            try:
-                await self.stop_partial_recon(project_id, timeout=5)
-            except Exception as e:
-                logger.error(f"Error cleaning up partial recon {project_id}: {e}")
+        for project_id, runs in list(self.partial_recon_states.items()):
+            for run_id in list(runs.keys()):
+                try:
+                    await self.stop_partial_recon(project_id, run_id, timeout=5)
+                except Exception as e:
+                    logger.error(f"Error cleaning up partial recon {project_id}/{run_id}: {e}")
         for project_id in list(self.gvm_states.keys()):
             try:
                 await self.stop_gvm_scan(project_id, timeout=5)
@@ -577,46 +582,82 @@ class ContainerManager:
     # Partial Recon Container Lifecycle
     # =========================================================================
 
-    def _get_partial_container_name(self, project_id: str) -> str:
-        """Generate container name for a partial recon"""
+    def _get_partial_container_name(self, project_id: str, run_id: str) -> str:
+        """Generate container name for a partial recon run"""
         safe_id = re.sub(r'[^a-zA-Z0-9_.-]', '_', project_id)
-        return f"redamon-partial-recon-{safe_id}"
+        return f"redamon-partial-recon-{safe_id}-{run_id[:8]}"
 
-    async def get_partial_recon_status(self, project_id: str) -> PartialReconState:
-        """Get current status of a partial recon process"""
-        if project_id in self.partial_recon_states:
-            state = self.partial_recon_states[project_id]
+    def _count_active_partial_recons(self, project_id: str) -> int:
+        """Count the number of active (running/starting) partial recons for a project"""
+        return sum(
+            1 for s in self.partial_recon_states.get(project_id, {}).values()
+            if s.status in (PartialReconStatus.RUNNING, PartialReconStatus.STARTING)
+        )
 
-            if state.container_id:
+    def _refresh_partial_recon_state(self, state: PartialReconState) -> None:
+        """Refresh a partial recon state by checking its Docker container"""
+        if not state.container_id:
+            return
+        if state.status in (PartialReconStatus.COMPLETED, PartialReconStatus.ERROR, PartialReconStatus.IDLE):
+            return
+
+        try:
+            container = self.client.containers.get(state.container_id)
+            if container.status != "running":
+                exit_code = container.attrs.get("State", {}).get("ExitCode", -1)
+                if exit_code == 0:
+                    state.status = PartialReconStatus.COMPLETED
+                    state.completed_at = datetime.now(timezone.utc)
+                else:
+                    state.status = PartialReconStatus.ERROR
+                    state.error = f"Container exited with code {exit_code}"
+                    state.completed_at = datetime.now(timezone.utc)
                 try:
-                    container = self.client.containers.get(state.container_id)
-                    if container.status != "running":
-                        exit_code = container.attrs.get("State", {}).get("ExitCode", -1)
-                        if exit_code == 0:
-                            state.status = PartialReconStatus.COMPLETED
-                            state.completed_at = datetime.now(timezone.utc)
-                        else:
-                            state.status = PartialReconStatus.ERROR
-                            state.error = f"Container exited with code {exit_code}"
-                            state.completed_at = datetime.now(timezone.utc)
-                        try:
-                            container.remove()
-                            logger.info(f"Auto-removed partial recon container for {project_id}")
-                        except Exception as e:
-                            logger.warning(f"Failed to auto-remove partial container: {e}")
-                except NotFound:
-                    if state.status not in (PartialReconStatus.COMPLETED, PartialReconStatus.ERROR):
-                        state.status = PartialReconStatus.ERROR
-                        state.error = "Container not found"
-                except APIError as e:
-                    logger.warning(f"Docker API error checking partial recon for {project_id}: {e}")
+                    container.remove()
+                    logger.info(f"Auto-removed partial recon container for {state.project_id}/{state.run_id}")
+                except Exception as e:
+                    logger.warning(f"Failed to auto-remove partial container: {e}")
+        except NotFound:
+            if state.status not in (PartialReconStatus.COMPLETED, PartialReconStatus.ERROR):
+                state.status = PartialReconStatus.ERROR
+                state.error = "Container not found"
+        except APIError as e:
+            logger.warning(f"Docker API error checking partial recon {state.project_id}/{state.run_id}: {e}")
 
+    async def get_partial_recon_status(self, project_id: str, run_id: str) -> PartialReconState:
+        """Get current status of a specific partial recon run"""
+        runs = self.partial_recon_states.get(project_id, {})
+        state = runs.get(run_id)
+        if state:
+            self._refresh_partial_recon_state(state)
             return state
 
         return PartialReconState(
             project_id=project_id,
+            run_id=run_id,
             status=PartialReconStatus.IDLE,
         )
+
+    async def get_all_partial_recon_statuses(self, project_id: str) -> list[PartialReconState]:
+        """Get all partial recon states for a project, refreshing container status.
+        Auto-cleans completed/errored entries older than 60 seconds.
+        """
+        runs = self.partial_recon_states.get(project_id, {})
+        to_remove = []
+
+        for run_id, state in runs.items():
+            self._refresh_partial_recon_state(state)
+            # Auto-clean old completed/errored entries
+            if state.status in (PartialReconStatus.COMPLETED, PartialReconStatus.ERROR):
+                if state.completed_at and (datetime.now(timezone.utc) - state.completed_at).total_seconds() > 60:
+                    to_remove.append(run_id)
+
+        for run_id in to_remove:
+            del runs[run_id]
+        if not runs and project_id in self.partial_recon_states:
+            del self.partial_recon_states[project_id]
+
+        return list(runs.values())
 
     async def start_partial_recon(
         self,
@@ -633,30 +674,26 @@ class ContainerManager:
             config: Full config dict to write as JSON for the container
             recon_path: Host path to the recon directory
         """
-        # Check mutual exclusion
-        current_state = await self.get_partial_recon_status(project_id)
-        if current_state.status in (PartialReconStatus.RUNNING, PartialReconStatus.STARTING):
-            raise ValueError(f"Partial recon already active for project {project_id}")
+        # Check concurrency limit
+        if self._count_active_partial_recons(project_id) >= MAX_PARALLEL_PARTIAL_RECONS:
+            raise ValueError(f"Maximum {MAX_PARALLEL_PARTIAL_RECONS} concurrent partial recons reached for project {project_id}")
 
+        # Mutual exclusion with full recon
         recon_state = await self.get_status(project_id)
         if recon_state.status in (ReconStatus.RUNNING, ReconStatus.PAUSED):
             raise ValueError(f"Full recon is running for project {project_id}. Stop it first.")
 
-        # Clean up old partial container
-        container_name = self._get_partial_container_name(project_id)
-        try:
-            old_container = self.client.containers.get(container_name)
-            old_container.remove(force=True)
-        except NotFound:
-            pass
+        run_id = str(uuid.uuid4())
+        container_name = self._get_partial_container_name(project_id, run_id)
 
         state = PartialReconState(
             project_id=project_id,
+            run_id=run_id,
             tool_id=tool_id,
             status=PartialReconStatus.STARTING,
             started_at=datetime.now(timezone.utc),
         )
-        self.partial_recon_states[project_id] = state
+        self.partial_recon_states.setdefault(project_id, {})[run_id] = state
 
         try:
             # Ensure recon image exists
@@ -670,7 +707,7 @@ class ContainerManager:
             import json
             config_dir = Path("/tmp/redamon")
             config_dir.mkdir(parents=True, exist_ok=True)
-            config_path = config_dir / f"partial_{project_id}.json"
+            config_path = config_dir / f"partial_{project_id}_{run_id}.json"
             with open(config_path, "w") as f:
                 json.dump(config, f)
 
@@ -685,7 +722,8 @@ class ContainerManager:
                     "PROJECT_ID": project_id,
                     "USER_ID": config.get("user_id", ""),
                     "WEBAPP_API_URL": config.get("webapp_api_url", ""),
-                    "PARTIAL_RECON_CONFIG": f"/tmp/redamon/partial_{project_id}.json",
+                    "PARTIAL_RECON_CONFIG": f"/tmp/redamon/partial_{project_id}_{run_id}.json",
+                    "PARTIAL_RECON_RUN_ID": run_id,
                     "UPDATE_GRAPH_DB": "true",
                     "HOST_RECON_OUTPUT_PATH": f"{recon_path}/output",
                     "NEO4J_URI": os.environ.get("NEO4J_URI", "bolt://localhost:7687"),
@@ -706,18 +744,18 @@ class ContainerManager:
 
             state.container_id = container.id
             state.status = PartialReconStatus.RUNNING
-            logger.info(f"Started partial recon container {container.id} for project {project_id}, tool {tool_id}")
+            logger.info(f"Started partial recon container {container.id} for project {project_id}, tool {tool_id}, run {run_id}")
 
         except Exception as e:
             state.status = PartialReconStatus.ERROR
             state.error = str(e)
-            logger.error(f"Failed to start partial recon for {project_id}: {e}")
+            logger.error(f"Failed to start partial recon for {project_id}/{run_id}: {e}")
 
         return state
 
-    async def stop_partial_recon(self, project_id: str, timeout: int = 10) -> PartialReconState:
-        """Stop a running partial recon process"""
-        state = await self.get_partial_recon_status(project_id)
+    async def stop_partial_recon(self, project_id: str, run_id: str, timeout: int = 10) -> PartialReconState:
+        """Stop a specific partial recon run"""
+        state = await self.get_partial_recon_status(project_id, run_id)
 
         if state.status not in (PartialReconStatus.RUNNING, PartialReconStatus.STARTING):
             return state
@@ -731,28 +769,39 @@ class ContainerManager:
                 container.remove()
                 state.status = PartialReconStatus.IDLE
                 state.completed_at = datetime.now(timezone.utc)
-                logger.info(f"Stopped partial recon container for project {project_id}")
+                logger.info(f"Stopped partial recon container for project {project_id}, run {run_id}")
             except NotFound:
                 state.status = PartialReconStatus.IDLE
             except Exception as e:
                 state.status = PartialReconStatus.ERROR
                 state.error = f"Failed to stop: {e}"
 
-        # Clean up sub-containers spawned by partial recon
-        cleaned = self._cleanup_sub_containers()
-        if cleaned > 0:
-            logger.info(f"Cleaned up {cleaned} sub-container(s) for partial recon {project_id}")
+        # Note: sub-container cleanup is NOT done here because it would kill
+        # containers from other parallel partial recons. Sub-containers are
+        # short-lived and will exit naturally.
 
-        if project_id in self.partial_recon_states:
+        # Remove from state dict
+        runs = self.partial_recon_states.get(project_id, {})
+        if run_id in runs:
+            del runs[run_id]
+        if not runs and project_id in self.partial_recon_states:
             del self.partial_recon_states[project_id]
+
+        # Best-effort cleanup of config file
+        try:
+            config_path = Path(f"/tmp/redamon/partial_{project_id}_{run_id}.json")
+            if config_path.exists():
+                config_path.unlink()
+        except Exception:
+            pass
 
         return state
 
-    async def stream_partial_logs(self, project_id: str) -> AsyncGenerator[ReconLogEvent, None]:
-        """Stream logs from a partial recon container.
+    async def stream_partial_logs(self, project_id: str, run_id: str) -> AsyncGenerator[ReconLogEvent, None]:
+        """Stream logs from a specific partial recon container.
         Reuses the same log parsing logic as full recon.
         """
-        state = await self.get_partial_recon_status(project_id)
+        state = await self.get_partial_recon_status(project_id, run_id)
 
         if not state.container_id:
             yield ReconLogEvent(

@@ -128,6 +128,7 @@ export type PartialReconStatus = 'idle' | 'starting' | 'running' | 'completed' |
 
 export interface PartialReconState {
   project_id: string
+  run_id: string
   tool_id: string
   status: PartialReconStatus
   container_id: string | null
@@ -135,6 +136,11 @@ export interface PartialReconState {
   completed_at: string | null
   error: string | null
   stats: Record<string, number> | null
+}
+
+export interface PartialReconListResponse {
+  project_id: string
+  runs: PartialReconState[]
 }
 
 export interface GraphInputs {

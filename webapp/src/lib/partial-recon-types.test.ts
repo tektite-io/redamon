@@ -7,6 +7,7 @@ import {
 import type {
   PartialReconStatus,
   PartialReconState,
+  PartialReconListResponse,
   GraphInputs,
   PartialReconParams,
   UserTargets,
@@ -181,6 +182,7 @@ describe('PartialReconState type shape', () => {
   test('default idle state has required fields', () => {
     const state: PartialReconState = {
       project_id: 'proj-123',
+      run_id: 'run-001',
       tool_id: 'SubdomainDiscovery',
       status: 'idle',
       container_id: null,
@@ -197,6 +199,7 @@ describe('PartialReconState type shape', () => {
   test('completed state with stats', () => {
     const state: PartialReconState = {
       project_id: 'proj-123',
+      run_id: 'run-002',
       tool_id: 'SubdomainDiscovery',
       status: 'completed',
       container_id: 'abc123',
@@ -212,6 +215,7 @@ describe('PartialReconState type shape', () => {
   test('error state with error message', () => {
     const state: PartialReconState = {
       project_id: 'proj-123',
+      run_id: 'run-003',
       tool_id: 'SubdomainDiscovery',
       status: 'error',
       container_id: null,
@@ -229,7 +233,7 @@ describe('PartialReconStatus values', () => {
     'idle', 'starting', 'running', 'completed', 'error', 'stopping',
   ])('accepts valid status: %s', (status) => {
     const state: PartialReconState = {
-      project_id: 'p', tool_id: 't', status,
+      project_id: 'p', run_id: 'r', tool_id: 't', status,
       container_id: null, started_at: null, completed_at: null, error: null, stats: null,
     }
     expect(state.status).toBe(status)
@@ -700,5 +704,103 @@ describe('GraphInputs with existing_subdomains', () => {
     expect(inputs.existing_subdomains_count).toBe(3)
     expect(inputs.existing_ips_count).toBe(5)
     expect(inputs.existing_baseurls_count).toBe(2)
+  })
+})
+
+// === PartialReconListResponse (parallel recon) ===
+describe('PartialReconListResponse type shape', () => {
+  test('empty runs list', () => {
+    const resp: PartialReconListResponse = {
+      project_id: 'proj-1',
+      runs: [],
+    }
+    expect(resp.runs).toHaveLength(0)
+    expect(resp.project_id).toBe('proj-1')
+  })
+
+  test('multiple concurrent runs', () => {
+    const resp: PartialReconListResponse = {
+      project_id: 'proj-1',
+      runs: [
+        {
+          project_id: 'proj-1', run_id: 'r1', tool_id: 'Naabu',
+          status: 'running', container_id: 'c1', started_at: '2026-04-14T10:00:00Z',
+          completed_at: null, error: null, stats: null,
+        },
+        {
+          project_id: 'proj-1', run_id: 'r2', tool_id: 'Httpx',
+          status: 'starting', container_id: 'c2', started_at: '2026-04-14T10:01:00Z',
+          completed_at: null, error: null, stats: null,
+        },
+        {
+          project_id: 'proj-1', run_id: 'r3', tool_id: 'SubdomainDiscovery',
+          status: 'completed', container_id: null, started_at: '2026-04-14T09:50:00Z',
+          completed_at: '2026-04-14T09:55:00Z', error: null, stats: { subdomains_new: 5 },
+        },
+      ],
+    }
+    expect(resp.runs).toHaveLength(3)
+    expect(resp.runs[0].run_id).toBe('r1')
+    expect(resp.runs[1].status).toBe('starting')
+    expect(resp.runs[2].stats?.subdomains_new).toBe(5)
+  })
+
+  test('each run has unique run_id', () => {
+    const resp: PartialReconListResponse = {
+      project_id: 'proj-1',
+      runs: [
+        { project_id: 'proj-1', run_id: 'aaa', tool_id: 'Naabu', status: 'running', container_id: null, started_at: null, completed_at: null, error: null, stats: null },
+        { project_id: 'proj-1', run_id: 'bbb', tool_id: 'Naabu', status: 'running', container_id: null, started_at: null, completed_at: null, error: null, stats: null },
+      ],
+    }
+    const runIds = resp.runs.map(r => r.run_id)
+    expect(new Set(runIds).size).toBe(runIds.length)
+  })
+
+  test('same tool can appear multiple times', () => {
+    const resp: PartialReconListResponse = {
+      project_id: 'proj-1',
+      runs: [
+        { project_id: 'proj-1', run_id: 'r1', tool_id: 'Naabu', status: 'running', container_id: null, started_at: null, completed_at: null, error: null, stats: null },
+        { project_id: 'proj-1', run_id: 'r2', tool_id: 'Naabu', status: 'starting', container_id: null, started_at: null, completed_at: null, error: null, stats: null },
+      ],
+    }
+    expect(resp.runs[0].tool_id).toBe('Naabu')
+    expect(resp.runs[1].tool_id).toBe('Naabu')
+    expect(resp.runs[0].run_id).not.toBe(resp.runs[1].run_id)
+  })
+})
+
+describe('PartialReconState run_id field', () => {
+  test('run_id is required in state', () => {
+    const state: PartialReconState = {
+      project_id: 'proj-1',
+      run_id: '550e8400-e29b-41d4-a716-446655440000',
+      tool_id: 'Katana',
+      status: 'running',
+      container_id: 'abc',
+      started_at: '2026-04-14T10:00:00Z',
+      completed_at: null,
+      error: null,
+      stats: null,
+    }
+    expect(state.run_id).toBe('550e8400-e29b-41d4-a716-446655440000')
+    expect(state.run_id.length).toBe(36)
+  })
+
+  test('stopping state with run_id', () => {
+    const state: PartialReconState = {
+      project_id: 'proj-1',
+      run_id: 'stop-run',
+      tool_id: 'Nuclei',
+      status: 'stopping',
+      container_id: 'xyz',
+      started_at: '2026-04-14T10:00:00Z',
+      completed_at: null,
+      error: null,
+      stats: null,
+    }
+    expect(state.status).toBe('stopping')
+    expect(state.run_id).toBe('stop-run')
   })
 })

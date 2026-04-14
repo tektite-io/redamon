@@ -29,6 +29,7 @@ interface WorkflowViewProps {
   mode: 'create' | 'edit'
   onSave?: () => Promise<void>
   onRunPartial?: (toolId: string) => void
+  runningPartialToolIds?: Set<string>
   onAutoSaveField?: <K extends keyof FormData>(field: K, value: FormData[K]) => void
 }
 
@@ -42,7 +43,7 @@ const edgeTypes = {
   custom: CustomEdge,
 }
 
-export function WorkflowView({ formData, updateField, projectId, mode, onSave, onRunPartial, onAutoSaveField }: WorkflowViewProps) {
+export function WorkflowView({ formData, updateField, projectId, mode, onSave, onRunPartial, runningPartialToolIds, onAutoSaveField }: WorkflowViewProps) {
   const [selectedToolId, setSelectedToolId] = useState<string | null>(mode === 'create' ? 'input' : null)
   const [highlightedNodeId, setHighlightedNodeId] = useState<string | null>(null)
   const [badgeNodeType, setBadgeNodeType] = useState<string | null>(null)
@@ -111,6 +112,7 @@ export function WorkflowView({ formData, updateField, projectId, mode, onSave, o
             onOpenSettings: handleOpenSettings,
             onRunPartial: mode === 'edit' && projectId ? onRunPartial : undefined,
             partialReconSupported: PARTIAL_RECON_SUPPORTED_TOOLS.has(toolId),
+            isRunningPartial: runningPartialToolIds?.has(toolId) ?? false,
             onNodeClick: handleNodeClick,
             highlighted: isHighlighted,
             dimmed,
