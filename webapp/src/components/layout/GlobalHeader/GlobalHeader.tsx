@@ -3,23 +3,28 @@
 import Image from 'next/image'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Crosshair, FolderOpen, Shield, CircleHelp, TrendingUp, FileText, Settings, Users } from 'lucide-react'
+import { Crosshair, FolderOpen, Shield, CircleHelp, TrendingUp, FileText, Settings, Users, GitBranch } from 'lucide-react'
 import { ThemeToggle } from '@/components/ThemeToggle'
 import { ProjectSelector } from './ProjectSelector'
 import { UserSelector } from './UserSelector'
 import { useAuth } from '@/providers/AuthProvider'
+import { useProject } from '@/providers/ProjectProvider'
 import styles from './GlobalHeader.module.css'
-
-const coreNav = [
-  { label: 'Red Zone', href: '/graph', icon: <Crosshair size={14} /> },
-  { label: 'CypherFix', href: '/cypherfix', icon: <Shield size={14} /> },
-  { label: 'Insights', href: '/insights', icon: <TrendingUp size={14} /> },
-  { label: 'Reports', href: '/reports', icon: <FileText size={14} /> },
-]
 
 export function GlobalHeader() {
   const pathname = usePathname()
   const { isAdmin } = useAuth()
+  const { projectId } = useProject()
+
+  const coreNav = [
+    { label: 'Red Zone', href: '/graph', icon: <Crosshair size={14} /> },
+    ...(projectId
+      ? [{ label: 'Recon Pipeline', href: `/projects/${projectId}/settings`, icon: <GitBranch size={14} /> }]
+      : []),
+    { label: 'CypherFix', href: '/cypherfix', icon: <Shield size={14} /> },
+    { label: 'Insights', href: '/insights', icon: <TrendingUp size={14} /> },
+    { label: 'Reports', href: '/reports', icon: <FileText size={14} /> },
+  ]
 
   return (
     <header className={styles.header}>

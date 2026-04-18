@@ -7,6 +7,7 @@ import {
   SEVERITY_SIZE_MULTIPLIERS,
   GOAL_FINDING_TYPES,
   GOAL_FINDING_COLORS,
+  CLUSTER_SIZE,
 } from '../config'
 
 /**
@@ -29,6 +30,7 @@ export const isGoalFinding = (node: GraphNode): boolean => {
  * Get node color based on type and severity
  */
 export const getNodeColor = (node: GraphNode): string => {
+  if (node.isCluster && node.clusterColor) return node.clusterColor
   if (node.type === 'Vulnerability') {
     const severity = getNodeSeverity(node)
     return SEVERITY_COLORS_VULN[severity] || SEVERITY_COLORS_VULN.unknown
@@ -48,6 +50,12 @@ export const getNodeColor = (node: GraphNode): string => {
  * Get node size multiplier based on type and severity
  */
 export const getNodeSize = (node: GraphNode): number => {
+  if (node.isCluster) {
+    const count = node.clusterChildren?.length ?? 0
+    // log10(count) scales gracefully: 30 -> ~1.5, 100 -> 2, 1000 -> 3
+    const scaled = CLUSTER_SIZE.base + CLUSTER_SIZE.perDecade * Math.log10(Math.max(count, 1))
+    return Math.min(scaled, CLUSTER_SIZE.max)
+  }
   const baseSize = NODE_SIZES[node.type] || NODE_SIZES.Default
 
   if (node.type === 'Vulnerability' || node.type === 'CVE') {

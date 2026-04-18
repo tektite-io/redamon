@@ -24,6 +24,11 @@ interface JsReconResponse {
   dom_sinks: any[]
   frameworks: any[]
   dev_comments: any[]
+  emails: any[]
+  ip_addresses: any[]
+  object_references: any[]
+  cloud_assets: any[]
+  external_domains: any[]
   summary: {
     total_secrets: number
     total_endpoints: number
@@ -33,7 +38,7 @@ interface JsReconResponse {
 }
 
 function generateEtag(data: JsReconResponse): string {
-  const raw = `${data.secrets.length}:${data.endpoints.length}:${data.dependencies.length}:${data.dom_sinks.length}:${data.frameworks.length}:${data.source_maps.length}:${data.dev_comments.length}`
+  const raw = `${data.secrets.length}:${data.endpoints.length}:${data.dependencies.length}:${data.dom_sinks.length}:${data.frameworks.length}:${data.source_maps.length}:${data.dev_comments.length}:${data.emails.length}:${data.ip_addresses.length}:${data.object_references.length}:${data.cloud_assets.length}:${data.external_domains.length}`
   return createHash('md5').update(raw).digest('hex').slice(0, 16)
 }
 
@@ -77,7 +82,12 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
              jf.evidence AS evidence,
              jf.source_url AS sourceUrl,
              jf.base_url AS baseUrl,
-             jf.id AS id
+             jf.id AS id,
+             jf.cloud_provider AS cloudProvider,
+             jf.cloud_asset_type AS cloudAssetType,
+             jf.times_seen AS timesSeen,
+             jf.sample_urls AS sampleUrls,
+             jf.potential_idor AS potentialIdor
       `,
       { pid: projectId }
     )
@@ -125,6 +135,11 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     const dom_sinks: any[] = []
     const frameworks: any[] = []
     const dev_comments: any[] = []
+    const emails: any[] = []
+    const ip_addresses: any[] = []
+    const object_references: any[] = []
+    const cloud_assets: any[] = []
+    const external_domains: any[] = []
     let jsFilesCount = 0
 
     for (const record of findingsResult.records) {
@@ -178,6 +193,49 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
             content: base.detail || base.evidence,
           })
           break
+        case 'email':
+          emails.push({
+            email: base.title,
+            category: 'unknown',
+            source_url: base.source_url,
+            context: base.detail,
+          })
+          break
+        case 'internal_ip':
+          ip_addresses.push({
+            ip: base.title,
+            type: base.evidence || 'private',
+            source_url: base.source_url,
+            context: base.detail,
+          })
+          break
+        case 'object_reference':
+          object_references.push({
+            type: base.evidence || 'uuid',
+            value: base.title,
+            source_url: base.source_url,
+            context: base.detail,
+            potential_idor: record.get('potentialIdor') ?? false,
+          })
+          break
+        case 'cloud_asset':
+          cloud_assets.push({
+            provider: record.get('cloudProvider') || base.evidence,
+            type: record.get('cloudAssetType') || 'cloud_asset',
+            url: base.title,
+            source_url: base.source_url,
+          })
+          break
+        case 'external_domain': {
+          const ts = record.get('timesSeen')
+          external_domains.push({
+            domain: base.title,
+            source: 'js_recon',
+            urls: record.get('sampleUrls') || [],
+            times_seen: typeof ts === 'object' && ts !== null && 'low' in ts ? ts.low : (ts ?? 1),
+          })
+          break
+        }
       }
     }
 
@@ -213,8 +271,17 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       source_js: r.get('source_js') || '',
     }))
 
-    // Check if any data exists
-    if (jsFilesCount === 0 && secrets.length === 0 && endpoints.length === 0) {
+    // Check if any data exists (any of the persisted finding types)
+    const hasAnyData =
+      jsFilesCount > 0 ||
+      secrets.length > 0 ||
+      endpoints.length > 0 ||
+      emails.length > 0 ||
+      ip_addresses.length > 0 ||
+      object_references.length > 0 ||
+      cloud_assets.length > 0 ||
+      external_domains.length > 0
+    if (!hasAnyData) {
       return NextResponse.json(
         { error: 'No JS Recon data. Run a recon scan with JS Recon enabled.' },
         { status: 404 }
@@ -232,10 +299,17 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       dom_sinks,
       frameworks,
       dev_comments,
+      emails,
+      ip_addresses,
+      object_references,
+      cloud_assets,
+      external_domains,
       summary: {
         total_secrets: secrets.length,
         total_endpoints: endpoints.length,
-        total_findings: dependencies.length + source_maps.length + dom_sinks.length + frameworks.length + dev_comments.length,
+        total_findings: dependencies.length + source_maps.length + dom_sinks.length + frameworks.length
+          + dev_comments.length + emails.length + ip_addresses.length + object_references.length
+          + cloud_assets.length + external_domains.length,
         ...(liveCount > 0 ? { validated_keys: { live: liveCount } } : {}),
       },
     }

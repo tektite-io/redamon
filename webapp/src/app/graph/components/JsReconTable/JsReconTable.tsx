@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo, memo } from 'react'
 import { Loader2, AlertTriangle, Copy, Check } from 'lucide-react'
+import { ExternalLink } from '@/components/ui'
 import styles from './JsReconTable.module.css'
 
 export type { JsReconData }
@@ -258,7 +259,7 @@ function SecretsTable({ rows, search, limit }: { rows: any[]; search: string; li
               <code className={styles.mono}>{s.redacted_value}</code>
               <CopyButton text={s.matched_text || ''} />
             </td>
-            <td className={styles.truncate} title={s.source_url}>{s.source_url}</td>
+            <td className={styles.truncate} title={s.source_url}><ExternalLink href={s.source_url}>{s.source_url}</ExternalLink></td>
             <td>{valBadge(s.validation?.status)}</td>
             <td>{s.confidence}</td>
           </tr>
@@ -282,7 +283,7 @@ function EndpointsTable({ rows, search, limit }: { rows: any[]; search: string; 
             <td className={styles.truncate} title={ep.full_url || ep.path}><code className={styles.mono}>{ep.path}</code></td>
             <td>{ep.type}</td>
             <td>{ep.category}</td>
-            <td className={styles.truncate} title={ep.source_js}>{ep.source_js}</td>
+            <td className={styles.truncate} title={ep.source_js}><ExternalLink href={ep.source_js}>{ep.source_js}</ExternalLink></td>
           </tr>
         ))}
       </tbody>
@@ -320,8 +321,8 @@ function SourceMapsTable({ rows, search, limit }: { rows: any[]; search: string;
       <tbody>
         {filtered.map((sm, i) => (
           <tr key={sm.id || i}>
-            <td className={styles.truncate} title={sm.js_url}><code className={styles.mono}>{sm.js_url}</code></td>
-            <td className={styles.truncate} title={sm.map_url}><code className={styles.mono}>{sm.map_url}</code></td>
+            <td className={styles.truncate} title={sm.js_url}><code className={styles.mono}><ExternalLink href={sm.js_url}>{sm.js_url}</ExternalLink></code></td>
+            <td className={styles.truncate} title={sm.map_url}><code className={styles.mono}><ExternalLink href={sm.map_url}>{sm.map_url}</ExternalLink></code></td>
             <td>{sm.accessible ? 'Yes' : 'No'}</td>
             <td>{sm.files_count || 0}</td>
             <td>{sm.secrets_in_source || 0}</td>
@@ -357,7 +358,7 @@ function SecurityTable({ data, search, limit }: { data: JsReconData; search: str
           <table className={styles.table}>
             <thead><tr><th>Framework</th><th>Version</th><th>Source</th></tr></thead>
             <tbody>{frameworks.slice(0, fwLimit).map((f, i) => (
-              <tr key={f.id || i}><td>{f.name}</td><td>{f.version || '-'}</td><td className={styles.truncate}>{f.source_url}</td></tr>
+              <tr key={f.id || i}><td>{f.name}</td><td>{f.version || '-'}</td><td className={styles.truncate} title={f.source_url}><ExternalLink href={f.source_url}>{f.source_url}</ExternalLink></td></tr>
             ))}</tbody>
           </table>
         </>
@@ -372,7 +373,7 @@ function SecurityTable({ data, search, limit }: { data: JsReconData; search: str
                 <td>{sevBadge(s.severity)}</td>
                 <td><code className={styles.mono}>{s.type}</code></td>
                 <td className={styles.truncate} title={s.pattern}><code className={styles.mono}>{s.pattern}</code></td>
-                <td className={styles.truncate}>{s.source_url}</td>
+                <td className={styles.truncate} title={s.source_url}><ExternalLink href={s.source_url}>{s.source_url}</ExternalLink></td>
                 <td>{s.line}</td>
               </tr>
             ))}</tbody>
@@ -389,7 +390,7 @@ function SecurityTable({ data, search, limit }: { data: JsReconData; search: str
                 <td>{sevBadge(c.severity)}</td>
                 <td>{c.type}</td>
                 <td className={styles.truncate} title={c.content}>{c.content}</td>
-                <td className={styles.truncate}>{c.source_url}</td>
+                <td className={styles.truncate} title={c.source_url}><ExternalLink href={c.source_url}>{c.source_url}</ExternalLink></td>
                 <td>{c.line}</td>
               </tr>
             ))}</tbody>
@@ -402,7 +403,7 @@ function SecurityTable({ data, search, limit }: { data: JsReconData; search: str
           <table className={styles.table}>
             <thead><tr><th>Type</th><th>Value</th><th>Source</th></tr></thead>
             <tbody>{refs.slice(0, refLimit).map((r, i) => (
-              <tr key={i}><td>{r.type}</td><td><code className={styles.mono}>{r.value}</code></td><td className={styles.truncate}>{r.source_url}</td></tr>
+              <tr key={i}><td>{r.type}</td><td><code className={styles.mono}>{r.value}</code></td><td className={styles.truncate} title={r.source_url}><ExternalLink href={r.source_url}>{r.source_url}</ExternalLink></td></tr>
             ))}</tbody>
           </table>
         </>
@@ -448,7 +449,7 @@ function SurfaceTable({ data, search, limit }: { data: JsReconData; search: stri
           <table className={styles.table}>
             <thead><tr><th>Provider</th><th>Type</th><th>URL</th><th>Source</th></tr></thead>
             <tbody>{cloud.slice(0, cloudLimit).map((a, i) => (
-              <tr key={i}><td>{a.provider}</td><td>{a.type}</td><td className={styles.truncate}><code className={styles.mono}>{a.url}</code></td><td className={styles.truncate}>{a.source_url}</td></tr>
+              <tr key={i}><td>{a.provider}</td><td>{a.type}</td><td className={styles.truncate} title={a.url}><code className={styles.mono}><ExternalLink href={a.url}>{a.url}</ExternalLink></code></td><td className={styles.truncate} title={a.source_url}><ExternalLink href={a.source_url}>{a.source_url}</ExternalLink></td></tr>
             ))}</tbody>
           </table>
         </>
@@ -459,7 +460,7 @@ function SurfaceTable({ data, search, limit }: { data: JsReconData; search: stri
           <table className={styles.table}>
             <thead><tr><th>Email</th><th>Source</th></tr></thead>
             <tbody>{emails.slice(0, emailsLimit).map((e, i) => (
-              <tr key={i}><td>{e.email}</td><td className={styles.truncate}>{e.source_url}</td></tr>
+              <tr key={i}><td>{e.email}</td><td className={styles.truncate} title={e.source_url}><ExternalLink href={e.source_url}>{e.source_url}</ExternalLink></td></tr>
             ))}</tbody>
           </table>
         </>
@@ -470,7 +471,7 @@ function SurfaceTable({ data, search, limit }: { data: JsReconData; search: stri
           <table className={styles.table}>
             <thead><tr><th>IP</th><th>Type</th><th>Source</th></tr></thead>
             <tbody>{ips.slice(0, ipsLimit).map((ip, i) => (
-              <tr key={i}><td><code className={styles.mono}>{ip.ip}</code></td><td>{ip.type}</td><td className={styles.truncate}>{ip.source_url}</td></tr>
+              <tr key={i}><td><code className={styles.mono}>{ip.ip}</code></td><td>{ip.type}</td><td className={styles.truncate} title={ip.source_url}><ExternalLink href={ip.source_url}>{ip.source_url}</ExternalLink></td></tr>
             ))}</tbody>
           </table>
         </>

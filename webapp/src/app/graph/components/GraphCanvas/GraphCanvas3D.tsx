@@ -77,6 +77,7 @@ function buildFullDetail(
   const isExploit = graphNode.type === 'ExploitGvm' || graphNode.type === 'ChainFinding'
   const isChainNode = graphNode.type === 'AttackChain' || graphNode.type === 'ChainStep' || graphNode.type === 'ChainDecision' || graphNode.type === 'ChainFailure'
   const isGoal = isGoalFinding(graphNode)
+  const isCluster = !!graphNode.isCluster
 
   // Effective color for chain/exploit nodes (inactive state by default)
   let effectiveColor: string
@@ -155,7 +156,10 @@ function buildFullDetail(
 
   // Main geometry
   let geometry: any
-  if (isExploit) {
+  if (isCluster) {
+    // Torus: ring of radius torusRadius, tube thickness tubeRadius
+    geometry = new THREE.TorusGeometry(sphereSize * 1.25, sphereSize * 0.45, 12, 32)
+  } else if (isExploit) {
     geometry = new THREE.OctahedronGeometry(sphereSize * 1.2)
   } else if (isChainNode) {
     geometry = new THREE.DodecahedronGeometry(sphereSize * 1.1)
@@ -164,7 +168,15 @@ function buildFullDetail(
   }
 
   const isSpecialNode = isExploit || isChainNode
-  const material = isSpecialNode
+  const material = isCluster
+    ? new THREE.MeshLambertMaterial({
+        color: nodeColor,
+        transparent: false,
+        opacity: 1,
+        emissive: nodeColor,
+        emissiveIntensity: 0.2,
+      })
+    : isSpecialNode
     ? new THREE.MeshLambertMaterial({
         color: effectiveColor,
         transparent: true,
@@ -181,6 +193,18 @@ function buildFullDetail(
   const mesh = new THREE.Mesh(geometry, material)
   mesh.name = 'mainMesh'
   group.add(mesh)
+
+  // Cluster: big count sprite at the center of the torus (always faces camera)
+  if (isCluster) {
+    const count = graphNode.clusterChildren?.length ?? 0
+    const countText = count >= 1000 ? `${Math.floor(count / 100) / 10}k` : `${count}`
+    const countSprite = new SpriteText(countText)
+    countSprite.color = labelColor
+    countSprite.fontWeight = 'bold'
+    countSprite.textHeight = sphereSize * 0.6
+    countSprite.name = 'countSprite'
+    group.add(countSprite)
+  }
 
   // Wireframe for exploit nodes
   if (enableWireframe && isExploit) {
@@ -223,9 +247,12 @@ function buildFullDetail(
 
   // Label (always created, visibility toggled via mutation)
   if (enableLabels) {
-    const sprite = new SpriteText(graphNode.name)
+    const labelText = isCluster
+      ? `${graphNode.clusterChildren?.length ?? 0} ${graphNode.clusterChildType ?? ''}`
+      : graphNode.name
+    const sprite = new SpriteText(labelText)
     sprite.color = labelColor
-    sprite.textHeight = BASE_SIZES.label3D
+    sprite.textHeight = BASE_SIZES.label3D * (isCluster ? 1.3 : 1)
     sprite.position.y = sphereSize + BASE_SIZES.label3D
     sprite.name = 'label'
     sprite.visible = true // toggled by showLabels mutation

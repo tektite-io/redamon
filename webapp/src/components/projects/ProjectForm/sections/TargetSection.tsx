@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useMemo } from 'react'
-import { ChevronDown, Target, ShieldAlert } from 'lucide-react'
+import { ChevronDown, Target, ShieldAlert, AlertTriangle } from 'lucide-react'
 import { Toggle } from '@/components/ui'
 import type { Project } from '@prisma/client'
 import { isHardBlockedDomain } from '@/lib/hard-guardrail'
@@ -223,10 +223,28 @@ export function TargetSection({ data, updateField, mode = 'create' }: TargetSect
                     ? 'Target domain and subdomains are locked after project creation to keep graph data consistent. To change them, create a new project.'
                     : 'Leave empty to discover all subdomains. Enter prefixes without dots (e.g., "www, api, admin").'}
                 </span>
-                {!isLocked && displayPrefixes.trim().length > 0 && (
-                  <span className={styles.fieldHintWarning}>
-                    Specifying prefixes disables full subdomain discovery (Subfinder/Amass). Only the listed prefixes will be scanned.
-                  </span>
+                {!isLocked && displayPrefixes.trim().length === 0 && (
+                  <div
+                    className={styles.shodanWarning}
+                    style={{
+                      marginTop: 'var(--space-2)',
+                      marginBottom: 0,
+                      padding: 'var(--space-3) var(--space-4)',
+                      fontSize: 'var(--text-sm)',
+                      borderWidth: '2px',
+                      borderColor: 'rgba(251, 146, 60, 0.5)',
+                      background: 'rgba(251, 146, 60, 0.12)',
+                      alignItems: 'center',
+                    }}
+                  >
+                    <AlertTriangle size={22} style={{ color: '#fb923c' }} />
+                    <span>
+                      <strong>Heads up:</strong> Leaving Subdomain Prefixes empty starts full
+                      subdomain enumeration across the entire domain. This will take
+                      <strong> much, much longer </strong>
+                      than scanning a specific set of prefixes.
+                    </span>
+                  </div>
                 )}
               </div>
 

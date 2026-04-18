@@ -9,6 +9,8 @@
 
 import { useState, useEffect } from 'react'
 import { Wrench, ChevronDown, ChevronRight, Copy, Check, Loader2, CheckCircle2, XCircle, AlertTriangle } from 'lucide-react'
+import { ExternalLink } from '@/components/ui'
+import { isHttpUrl } from '@/lib/url-utils'
 import styles from './ToolExecutionCard.module.css'
 import type { ToolExecutionItem } from './AgentTimeline'
 
@@ -118,7 +120,9 @@ export function ToolExecutionCard({ item, isExpanded, onToggleExpand, missingApi
       return (
         <div key={key} className={styles.argItem}>
           <span className={styles.argKey}>{key}:</span>
-          <span className={styles.argValue}>{valueStr}</span>
+          <span className={styles.argValue}>
+            {isHttpUrl(valueStr) ? <ExternalLink href={valueStr}>{valueStr}</ExternalLink> : valueStr}
+          </span>
         </div>
       )
     })
@@ -191,7 +195,9 @@ export function ToolExecutionCard({ item, isExpanded, onToggleExpand, missingApi
                     return (
                       <div key={key} className={styles.argItemExpanded}>
                         <span className={styles.argKeyExpanded}>{key}:</span>
-                        <pre className={styles.argValueExpanded}>{valueStr}</pre>
+                        <pre className={styles.argValueExpanded}>
+                          {isHttpUrl(valueStr) ? <ExternalLink href={valueStr}>{valueStr}</ExternalLink> : valueStr}
+                        </pre>
                       </div>
                     )
                   })}

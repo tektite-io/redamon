@@ -54,6 +54,17 @@ vi.mock('@/providers/AuthProvider', () => ({
   }),
 }))
 
+vi.mock('@/providers/ProjectProvider', () => ({
+  useProject: () => ({
+    currentProject: null,
+    setCurrentProject: vi.fn(),
+    projectId: null,
+    userId: null,
+    setUserId: vi.fn(),
+    isLoading: false,
+  }),
+}))
+
 import { GlobalHeader } from './GlobalHeader'
 
 /* ------------------------------------------------------------------ */

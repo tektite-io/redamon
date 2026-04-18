@@ -21,6 +21,7 @@ import { GraphViews } from './components/GraphViews'
 import { GitHubStarBanner } from './components/GitHubStarBanner'
 import { useGraphData, useDimensions, useNodeSelection, useTableData, useGraphViews } from './hooks'
 import { exportToExcel } from './utils/exportExcel'
+import { clusterGraphData } from './utils/clusterNodes'
 import { useTheme, useSession, useReconStatus, useReconSSE, useGvmStatus, useGvmSSE, useGithubHuntStatus, useGithubHuntSSE, useTrufflehogStatus, useTrufflehogSSE, useActiveSessions, useMultiPartialReconStatus, useMultiPartialReconSSE } from '@/hooks'
 import { useProjectById } from '@/hooks/useProjects'
 import { useProject } from '@/providers/ProjectProvider'
@@ -60,7 +61,15 @@ export default function GraphPage() {
   const contentRef = useRef<HTMLDivElement>(null)
   const bodyRef = useRef<HTMLDivElement>(null)
 
-  const { selectedNode, drawerOpen, selectNode, clearSelection } = useNodeSelection()
+  const {
+    selectedNode,
+    drawerOpen,
+    expandedChild,
+    selectNode,
+    clearSelection,
+    expandChild,
+    collapseChild,
+  } = useNodeSelection()
   const dimensions = useDimensions(contentRef)
 
   // Close all drawers when project changes
@@ -534,6 +543,14 @@ export default function GraphPage() {
     })
     return { ...data, nodes: filteredNodes, links: filteredLinks }
   }, [data, activeNodeTypes, nodeTypes.length, hiddenSessions, CHAIN_NODE_TYPES])
+
+  // Clustered graph data for GraphCanvas (collapses >30 same-type leaf neighbors sharing a parent).
+  // Applied AFTER filtering so hiding a child type also dissolves its clusters.
+  const clusteredGraphData = useMemo(() => {
+    const src = filterGraphData ?? filteredGraphData
+    if (!src) return undefined
+    return clusterGraphData(src)
+  }, [filterGraphData, filteredGraphData])
 
   // Effective table rows: use filter data when a data filter is active
   const effectiveTableRows = selectedFilterId ? filterTableRows : filteredByType
@@ -1117,7 +1134,6 @@ export default function GraphPage() {
         onDeleteFilter={handleDeleteFilter}
         tableViewMode={tableViewMode}
         onTableViewModeChange={setTableViewMode}
-        projectId={projectId}
         jsReconSearch={jsReconSearch}
         onJsReconSearchChange={setJsReconSearch}
         onJsReconExportXlsx={jsReconData ? () => exportJsReconXlsx(jsReconData) : undefined}
@@ -1136,13 +1152,16 @@ export default function GraphPage() {
             isOpen={drawerOpen}
             onClose={clearSelection}
             onDeleteNode={handleDeleteNode}
+            expandedChild={expandedChild}
+            onExpandChild={expandChild}
+            onCollapseChild={collapseChild}
           />
         )}
 
         <div ref={contentRef} className={styles.content}>
           {activeView === 'graph' ? (
             <GraphCanvas
-              data={filterGraphData ?? filteredGraphData}
+              data={clusteredGraphData}
               isLoading={filterLoading || isLoading}
               error={error}
               projectId={projectId || ''}

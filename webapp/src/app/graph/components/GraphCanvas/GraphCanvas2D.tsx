@@ -227,6 +227,60 @@ export function GraphCanvas2D({
           ctx.closePath()
         }
 
+        // Cluster node: torus / donut ring with centered count
+        if (graphNode.isCluster) {
+          const clusterColor = graphNode.clusterColor ?? color
+          const outerR = nodeSize * 1.35
+          const thickness = outerR * 0.42
+          const midR = outerR - thickness / 2
+          const innerR = outerR - thickness
+
+          // Selection ring (outer bounding circle)
+          if (isSelected) {
+            ctx.beginPath()
+            ctx.arc(graphNode.x, graphNode.y, outerR + 5, 0, 2 * Math.PI)
+            ctx.strokeStyle = SELECTION_COLORS.ring
+            ctx.lineWidth = 3
+            ctx.stroke()
+          }
+
+          // Thick stroked circle renders as a donut
+          ctx.beginPath()
+          ctx.arc(graphNode.x, graphNode.y, midR, 0, 2 * Math.PI)
+          ctx.strokeStyle = clusterColor
+          ctx.lineWidth = thickness
+          ctx.stroke()
+
+          // Subtle inner edge highlight for depth
+          ctx.beginPath()
+          ctx.arc(graphNode.x, graphNode.y, innerR, 0, 2 * Math.PI)
+          ctx.strokeStyle = 'rgba(0,0,0,0.25)'
+          ctx.lineWidth = 0.5
+          ctx.stroke()
+
+          // Count text inside the hole (theme-aware for contrast)
+          const count = graphNode.clusterChildren?.length ?? 0
+          const text = count >= 1000 ? `${Math.floor(count / 100) / 10}k` : `${count}`
+          const fontSize = Math.max(innerR * 0.78, 4)
+          ctx.font = `bold ${fontSize}px Sans-Serif`
+          ctx.textAlign = 'center'
+          ctx.textBaseline = 'middle'
+          ctx.fillStyle = isDark ? BACKGROUND_COLORS.dark.label : BACKGROUND_COLORS.light.label
+          ctx.fillText(text, graphNode.x, graphNode.y)
+
+          // Label below (respects label tier + zoom threshold)
+          if (tierConfig.enableLabels && ((showLabels && globalScale > ZOOM_CONFIG.labelVisibilityThreshold) || isSelected)) {
+            const childType = graphNode.clusterChildType ?? ''
+            const labelFont = Math.max(6 / globalScale, BASE_SIZES.label2D.min)
+            ctx.font = `${labelFont}px Sans-Serif`
+            ctx.textAlign = 'center'
+            ctx.textBaseline = 'top'
+            ctx.fillStyle = isDark ? BACKGROUND_COLORS.dark.label : BACKGROUND_COLORS.light.label
+            ctx.fillText(`${count} ${childType}`, graphNode.x, graphNode.y + outerR + 2)
+          }
+          return
+        }
+
         // Draw selection marker (outer ring) for selected node
         if (isSelected) {
           if (graphNode.type === 'ExploitGvm' || graphNode.type === 'ChainFinding') {
@@ -367,6 +421,14 @@ export function GraphCanvas2D({
       }}
       nodePointerAreaPaint={(node, color, ctx) => {
         const graphNode = node as GraphNode & { x: number; y: number }
+        if (graphNode.isCluster) {
+          const outerR = BASE_SIZES.node2D * getNodeSize(graphNode) * 1.35
+          ctx.beginPath()
+          ctx.arc(graphNode.x, graphNode.y, Math.max(outerR, 10), 0, 2 * Math.PI)
+          ctx.fillStyle = color
+          ctx.fill()
+          return
+        }
         ctx.beginPath()
         ctx.arc(graphNode.x, graphNode.y, 10, 0, 2 * Math.PI)
         ctx.fillStyle = color

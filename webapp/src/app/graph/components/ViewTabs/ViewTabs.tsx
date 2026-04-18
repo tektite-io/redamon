@@ -1,8 +1,7 @@
 'use client'
 
 import { memo, useState, useRef, useEffect, useCallback } from 'react'
-import { useRouter } from 'next/navigation'
-import { Waypoints, Table2, Terminal, Shield, Search, Download, SquareTerminal, Filter, Plus, Trash2, X, ChevronDown, Code, GitBranch } from 'lucide-react'
+import { Waypoints, Table2, Terminal, Shield, Search, Download, SquareTerminal, Filter, Plus, Trash2, X, ChevronDown, Code } from 'lucide-react'
 import { Toggle } from '@/components/ui'
 import styles from './ViewTabs.module.css'
 
@@ -52,8 +51,6 @@ interface ViewTabsProps {
   onJsReconSearchChange?: (value: string) => void
   onJsReconExportXlsx?: () => void
   jsReconMeta?: string
-  // Project ID for navigation
-  projectId?: string | null
   // View mode toggles (shown in right section when graph active)
   is3D?: boolean
   showLabels?: boolean
@@ -76,7 +73,6 @@ export const ViewTabs = memo(function ViewTabs({
   selectedFilterId,
   onSelectFilter,
   onDeleteFilter,
-  projectId,
   tableViewMode = 'all',
   onTableViewModeChange,
   jsReconSearch,
@@ -89,7 +85,6 @@ export const ViewTabs = memo(function ViewTabs({
   onToggleLabels,
   nodeCount = 0,
 }: ViewTabsProps) {
-  const router = useRouter()
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const [tableMenuOpen, setTableMenuOpen] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
@@ -255,17 +250,6 @@ export const ViewTabs = memo(function ViewTabs({
             </div>
           )}
         </div>
-        {projectId && (
-          <button
-            role="tab"
-            aria-selected={false}
-            className={styles.tab}
-            onClick={() => router.push(`/projects/${projectId}/settings`)}
-          >
-            <GitBranch size={14} />
-            <span>Recon Pipeline</span>
-          </button>
-        )}
         <button
           role="tab"
           aria-selected={activeView === 'sessions'}

@@ -2951,7 +2951,8 @@ class ReconMixin:
         with self.driver.session() as session:
             # --- 0. Collect all unique source JS files and create file nodes ---
             all_source_urls = set()
-            for data_key in ("dependencies", "source_maps", "dom_sinks", "dev_comments"):
+            for data_key in ("dependencies", "source_maps", "dom_sinks", "dev_comments",
+                             "emails", "ip_addresses", "object_references", "cloud_assets"):
                 for f in js_recon_data.get(data_key, []):
                     url = f.get("source_url", f.get("js_url", ""))
                     if url:
@@ -3140,6 +3141,232 @@ class ReconMixin:
                         stats["relationships_created"] += 1
                 except Exception as e:
                     stats["errors"].append(f"Framework finding failed: {e}")
+
+            # Email findings
+            created_emails = set()
+            for email in js_recon_data.get("emails", []):
+                try:
+                    email_addr = (email.get("email") or "").strip()
+                    if not email_addr:
+                        continue
+                    source_url = email.get("source_url", "")
+                    base_url = _derive_base_url(source_url)
+
+                    id_hash = hashlib.sha256(f"{email_addr}:{source_url}".encode()).hexdigest()[:16]
+                    node_id = f"jsrf-{user_id}-{project_id}-email-{id_hash}"
+                    if node_id in created_emails:
+                        continue
+                    created_emails.add(node_id)
+
+                    props = {
+                        "id": node_id,
+                        "user_id": user_id,
+                        "project_id": project_id,
+                        "finding_type": "email",
+                        "severity": "info",
+                        "confidence": "high",
+                        "title": email_addr,
+                        "detail": (email.get("context") or "")[:500],
+                        "evidence": email_addr,
+                        "source_url": source_url,
+                        "base_url": base_url or 'upload',
+                        "source": "js_recon",
+                        "discovered_at": scan_ts,
+                    }
+                    session.run(
+                        "MERGE (jf:JsReconFinding {id: $id}) SET jf += $props, jf.updated_at = datetime()",
+                        id=node_id, props=props
+                    )
+                    stats["findings_created"] += 1
+
+                    if _link_to_file(session, node_id, 'JsReconFinding', 'HAS_JS_FINDING', source_url):
+                        stats["relationships_created"] += 1
+                except Exception as e:
+                    stats["errors"].append(f"Email finding failed: {e}")
+
+            # Internal IP findings (RFC1918)
+            created_ips = set()
+            for ip_entry in js_recon_data.get("ip_addresses", []):
+                try:
+                    ip_addr = (ip_entry.get("ip") or "").strip()
+                    if not ip_addr:
+                        continue
+                    source_url = ip_entry.get("source_url", "")
+                    base_url = _derive_base_url(source_url)
+
+                    id_hash = hashlib.sha256(f"{ip_addr}:{source_url}".encode()).hexdigest()[:16]
+                    node_id = f"jsrf-{user_id}-{project_id}-ip-{id_hash}"
+                    if node_id in created_ips:
+                        continue
+                    created_ips.add(node_id)
+
+                    props = {
+                        "id": node_id,
+                        "user_id": user_id,
+                        "project_id": project_id,
+                        "finding_type": "internal_ip",
+                        "severity": "low",
+                        "confidence": "high",
+                        "title": ip_addr,
+                        "detail": (ip_entry.get("context") or "")[:500],
+                        "evidence": ip_entry.get("type", "private"),
+                        "source_url": source_url,
+                        "base_url": base_url or 'upload',
+                        "source": "js_recon",
+                        "discovered_at": scan_ts,
+                    }
+                    session.run(
+                        "MERGE (jf:JsReconFinding {id: $id}) SET jf += $props, jf.updated_at = datetime()",
+                        id=node_id, props=props
+                    )
+                    stats["findings_created"] += 1
+
+                    if _link_to_file(session, node_id, 'JsReconFinding', 'HAS_JS_FINDING', source_url):
+                        stats["relationships_created"] += 1
+                except Exception as e:
+                    stats["errors"].append(f"Internal IP finding failed: {e}")
+
+            # Object reference (UUID / IDOR) findings
+            created_refs = set()
+            for ref in js_recon_data.get("object_references", []):
+                try:
+                    value = (ref.get("value") or "").strip()
+                    if not value:
+                        continue
+                    source_url = ref.get("source_url", "")
+                    base_url = _derive_base_url(source_url)
+
+                    id_hash = hashlib.sha256(f"{value}:{source_url}".encode()).hexdigest()[:16]
+                    node_id = f"jsrf-{user_id}-{project_id}-objref-{id_hash}"
+                    if node_id in created_refs:
+                        continue
+                    created_refs.add(node_id)
+
+                    props = {
+                        "id": node_id,
+                        "user_id": user_id,
+                        "project_id": project_id,
+                        "finding_type": "object_reference",
+                        "severity": "info",
+                        "confidence": "medium",
+                        "title": value,
+                        "detail": (ref.get("context") or "")[:500],
+                        "evidence": ref.get("type", "uuid"),
+                        "source_url": source_url,
+                        "base_url": base_url or 'upload',
+                        "source": "js_recon",
+                        "potential_idor": bool(ref.get("potential_idor", False)),
+                        "discovered_at": scan_ts,
+                    }
+                    session.run(
+                        "MERGE (jf:JsReconFinding {id: $id}) SET jf += $props, jf.updated_at = datetime()",
+                        id=node_id, props=props
+                    )
+                    stats["findings_created"] += 1
+
+                    if _link_to_file(session, node_id, 'JsReconFinding', 'HAS_JS_FINDING', source_url):
+                        stats["relationships_created"] += 1
+                except Exception as e:
+                    stats["errors"].append(f"Object reference finding failed: {e}")
+
+            # Cloud asset findings (S3 / GCP / Azure URLs)
+            created_cloud = set()
+            for ca in js_recon_data.get("cloud_assets", []):
+                try:
+                    url_val = (ca.get("url") or "").strip()
+                    if not url_val:
+                        continue
+                    source_url = ca.get("source_url", "")
+                    base_url = _derive_base_url(source_url)
+                    provider = ca.get("provider", "unknown")
+                    asset_type = ca.get("type", "cloud_asset")
+
+                    id_hash = hashlib.sha256(f"{url_val}:{source_url}".encode()).hexdigest()[:16]
+                    node_id = f"jsrf-{user_id}-{project_id}-cloud-{id_hash}"
+                    if node_id in created_cloud:
+                        continue
+                    created_cloud.add(node_id)
+
+                    props = {
+                        "id": node_id,
+                        "user_id": user_id,
+                        "project_id": project_id,
+                        "finding_type": "cloud_asset",
+                        "severity": "medium",
+                        "confidence": "high",
+                        "title": url_val,
+                        "detail": f"{provider} — {asset_type}",
+                        "evidence": provider,
+                        "cloud_provider": provider,
+                        "cloud_asset_type": asset_type,
+                        "source_url": source_url,
+                        "base_url": base_url or 'upload',
+                        "source": "js_recon",
+                        "discovered_at": scan_ts,
+                    }
+                    session.run(
+                        "MERGE (jf:JsReconFinding {id: $id}) SET jf += $props, jf.updated_at = datetime()",
+                        id=node_id, props=props
+                    )
+                    stats["findings_created"] += 1
+
+                    if _link_to_file(session, node_id, 'JsReconFinding', 'HAS_JS_FINDING', source_url):
+                        stats["relationships_created"] += 1
+                except Exception as e:
+                    stats["errors"].append(f"Cloud asset finding failed: {e}")
+
+            # External domain findings (3rd-party domains leaked in JS URLs)
+            created_ext = set()
+            for ext in js_recon_data.get("external_domains", []):
+                try:
+                    domain_val = (ext.get("domain") or "").strip().lower()
+                    if not domain_val:
+                        continue
+                    times_seen = int(ext.get("times_seen", 1))
+                    sample_urls = ext.get("urls", [])
+
+                    id_hash = hashlib.sha256(domain_val.encode()).hexdigest()[:16]
+                    node_id = f"jsrf-{user_id}-{project_id}-extdom-{id_hash}"
+                    if node_id in created_ext:
+                        continue
+                    created_ext.add(node_id)
+
+                    props = {
+                        "id": node_id,
+                        "user_id": user_id,
+                        "project_id": project_id,
+                        "finding_type": "external_domain",
+                        "severity": "info",
+                        "confidence": "high",
+                        "title": domain_val,
+                        "detail": f"Seen {times_seen}x — {', '.join(sample_urls[:3])}"[:500],
+                        "evidence": domain_val,
+                        "times_seen": times_seen,
+                        "sample_urls": sample_urls[:3],
+                        "source_url": "",
+                        "base_url": "",
+                        "source": "js_recon",
+                        "discovered_at": scan_ts,
+                    }
+                    session.run(
+                        "MERGE (jf:JsReconFinding {id: $id}) SET jf += $props, jf.updated_at = datetime()",
+                        id=node_id, props=props
+                    )
+                    stats["findings_created"] += 1
+
+                    # External domains don't belong to a single file — link to Domain
+                    if domain_name:
+                        session.run(
+                            """
+                            MATCH (d:Domain {name: $dname, user_id: $uid, project_id: $pid})
+                            MATCH (jf:JsReconFinding {id: $fid})
+                            MERGE (d)-[:HAS_JS_FINDING]->(jf)
+                            """,
+                            dname=domain_name, uid=user_id, pid=project_id, fid=node_id
+                        )
+                        stats["relationships_created"] += 1
+                except Exception as e:
+                    stats["errors"].append(f"External domain finding failed: {e}")
 
             # --- 2. Secret nodes (source='js_recon') ---
             created_secrets = set()

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { Save, X, Loader2, Download, ShieldAlert, Zap, Bookmark, FolderOpen, List, GitBranch, Play } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import dynamic from 'next/dynamic'
@@ -179,6 +179,9 @@ export function ProjectForm({
     ...initialData
   } as ProjectFormData))
 
+  // Body wrapper ref -- used to pin log drawer top/bottom to the main content area
+  const bodyRef = useRef<HTMLDivElement>(null)
+
   // Partial Recon
   const [partialReconToolId, setPartialReconToolId] = useState<string | null>(null)
   const [isPartialReconStarting, setIsPartialReconStarting] = useState(false)
@@ -269,6 +272,27 @@ export function ProjectForm({
       })
     }
   }, [mode, initialData])
+
+  // Track body wrapper position so fixed-position log drawers pin to the main content area
+  useEffect(() => {
+    const body = bodyRef.current
+    if (!body) return
+    const update = () => {
+      const rect = body.getBoundingClientRect()
+      document.documentElement.style.setProperty('--drawer-top', `${rect.top}px`)
+      document.documentElement.style.setProperty('--drawer-bottom', `${window.innerHeight - rect.bottom}px`)
+    }
+    update()
+    const ro = new ResizeObserver(update)
+    ro.observe(body)
+    window.addEventListener('resize', update)
+    window.addEventListener('scroll', update, true)
+    return () => {
+      ro.disconnect()
+      window.removeEventListener('resize', update)
+      window.removeEventListener('scroll', update, true)
+    }
+  }, [])
 
   const updateField = <K extends keyof ProjectFormData>(
     field: K,
@@ -553,6 +577,7 @@ export function ProjectForm({
         </div>
       </div>
 
+      <div ref={bodyRef} className={styles.bodyWrapper}>
       {isLoadingDefaults ? (
         <div className={styles.loadingContainer}>
           <Loader2 size={24} className={styles.spinner} />
@@ -761,6 +786,7 @@ export function ProjectForm({
           </div>
         </>
       )}
+      </div>
 
       {/* Recon Preset modal */}
       <ReconPresetModal

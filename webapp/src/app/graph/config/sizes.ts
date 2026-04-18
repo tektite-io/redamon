@@ -61,3 +61,12 @@ export const LINK_SIZES = {
 
 // Drawer dimensions
 export const DRAWER_WIDTH = 400
+
+// Clustering: collapse >CLUSTER_THRESHOLD same-type leaf neighbors of a shared parent
+export const CLUSTER_THRESHOLD = 30
+export const CLUSTER_SIZE = {
+  base: 2.5,        // base multiplier for a cluster node (vs 1x for a leaf)
+  perDecade: 0.6,   // extra size per log10(childCount)
+  max: 5,           // hard cap
+} as const
+

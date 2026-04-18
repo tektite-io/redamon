@@ -2,7 +2,7 @@
 
 import { memo, useMemo } from 'react'
 import { NODE_COLORS } from '../../config'
-import { formatPropertyValue } from '../../utils/formatters'
+import { renderPropertyValue } from '../../utils/renderPropertyValue'
 import type { TableRow } from '../../hooks/useTableData'
 import styles from './ExpandedRowDetail.module.css'
 
@@ -34,7 +34,7 @@ export const ExpandedRowDetail = memo(function ExpandedRowDetail({ row }: Expand
               {properties.map(([key, value]) => (
                 <div key={key} className={styles.propRow}>
                   <span className={styles.propKey}>{key}</span>
-                  <span className={styles.propValue}>{formatPropertyValue(value)}</span>
+                  <span className={styles.propValue}>{renderPropertyValue(value)}</span>
                 </div>
               ))}
             </div>

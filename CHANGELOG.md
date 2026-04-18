@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [3.9.5] - 2026-04-18
+
+### Added
+
+- **Graph node clustering** -- >threshold same-type leaf neighbors of a shared parent are collapsed into synthetic cluster nodes to keep the canvas readable on large graphs. Clicking a cluster opens a new `ClusterNodeList` drawer with the full list of collapsed children. Chain-family nodes are never clustered; cluster IDs are deterministic (`cluster:<parentId>:<childType>`) and stable across re-renders (2D + 3D canvas, NodeDrawer, `useNodeSelection`)
+- **New JS Recon finding types** -- backend ingestion (`recon_mixin`) and download API now handle five additional categories: `emails`, internal IPs (`ip_addresses`, RFC1918), `object_references`, `cloud_assets` (AWS/GCP/Azure with `cloud_provider`, `cloud_asset_type`, `times_seen`, `sample_urls`, `potential_idor`), and `external_domains`. Each type creates its own `JsReconFinding` node linked to the source JS file
+- **ExternalLink component** -- shared UI primitive for rendering outbound links consistently across the app, paired with a new `url-utils` helper
+
+### Changed
+
+- **Recon Pipeline nav** -- moved from the Red Zone sub-bar into the top `GlobalHeader`, positioned to the right of Red Zone. Visible when a project is selected; the tab was removed from the graph view's sub-bar
+- **Project Settings tab bar** -- tightened top/bottom padding (8px/8px) so the Recon Pipeline tab strip no longer has asymmetric vertical spacing
+
+---
+
 ## [3.9.4] - 2026-04-16
 
 ### Added
