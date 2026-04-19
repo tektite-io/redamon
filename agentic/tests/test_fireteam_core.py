@@ -710,6 +710,94 @@ class SafetyRegressionTests(unittest.TestCase):
 
 
 # =============================================================================
+# 9b. Fireteam propensity prompt injection (per-project 1-5 scalar)
+# =============================================================================
+
+class FireteamPropensityTests(unittest.TestCase):
+    """The FIRETEAM_PROPENSITY setting prepends a strong directive to the
+    fireteam prompt block so the LLM knows how eagerly to fan out. Level 3
+    is baseline (empty). 1/2 push toward reluctance, 4/5 push toward
+    aggressiveness. The directive must NOT appear when the fireteam gate
+    itself is closed (FIRETEAM_ENABLED=false or phase not allowed)."""
+
+    def _fragments(self, propensity, *, enabled=True, phase="informational",
+                   allowed=("informational", "exploitation", "post_exploitation")):
+        from prompts.base import build_fireteam_prompt_fragments
+        return build_fireteam_prompt_fragments(
+            enabled=enabled, phase=phase, allowed_phases=list(allowed),
+            max_members=5, propensity=propensity,
+        )
+
+    def test_propensity_3_is_baseline_no_header(self):
+        """Propensity 3 preserves existing behavior — no extra header text."""
+        _, _, example = self._fragments(3)
+        self.assertIn("deploy_fireteam", example)
+        self.assertNotIn("FIRETEAM PROPENSITY", example)
+
+    def test_propensity_1_emits_very_reluctant(self):
+        _, _, example = self._fragments(1)
+        self.assertIn("FIRETEAM PROPENSITY: 1/5", example)
+        self.assertIn("VERY RELUCTANT", example)
+        self.assertIn("MUST NOT deploy", example)
+        # Header must sit above the base block so the LLM reads it first.
+        self.assertLess(example.index("FIRETEAM PROPENSITY"), example.index("deploy_fireteam"))
+
+    def test_propensity_2_emits_reluctant(self):
+        _, _, example = self._fragments(2)
+        self.assertIn("FIRETEAM PROPENSITY: 2/5", example)
+        self.assertIn("RELUCTANT", example)
+
+    def test_propensity_4_emits_eager(self):
+        _, _, example = self._fragments(4)
+        self.assertIn("FIRETEAM PROPENSITY: 4/5", example)
+        self.assertIn("EAGER", example)
+
+    def test_propensity_5_emits_aggressive(self):
+        _, _, example = self._fragments(5)
+        self.assertIn("FIRETEAM PROPENSITY: 5/5", example)
+        self.assertIn("AGGRESSIVE", example)
+        self.assertIn("MUST deploy", example)
+
+    def test_propensity_out_of_range_falls_back_to_baseline(self):
+        """Values outside 1-5 (bad DB write, stale setting) must not crash
+        and must produce the baseline block — never a half-rendered header."""
+        for bad in (0, 6, -1, 99):
+            _, _, example = self._fragments(bad)
+            self.assertIn("deploy_fireteam", example)
+            self.assertNotIn("FIRETEAM PROPENSITY", example)
+
+    def test_propensity_suppressed_when_gate_closed(self):
+        """Even with propensity=5, the header must NOT appear when the
+        fireteam gate is closed — the LLM must not see propensity
+        instructions for an action it cannot emit."""
+        # Gate closed via FIRETEAM_ENABLED=false
+        enum, field, example = self._fragments(5, enabled=False)
+        self.assertEqual((enum, field, example), ("", "", ""))
+        # Gate closed via phase not in allowlist
+        enum, field, example = self._fragments(5, phase="exploitation", allowed=("informational",))
+        self.assertEqual((enum, field, example), ("", "", ""))
+
+    def test_propensity_default_signature_is_three(self):
+        """Callers that omit the propensity kwarg (including existing test
+        and code paths) must still get baseline behavior."""
+        from prompts.base import build_fireteam_prompt_fragments
+        _, _, example_default = build_fireteam_prompt_fragments(
+            enabled=True, phase="informational",
+            allowed_phases=["informational"],
+            max_members=5,
+        )
+        _, _, example_three = self._fragments(3)
+        self.assertEqual(example_default, example_three)
+
+    def test_propensity_3_preserves_block_budget(self):
+        """Propensity 3 must not exceed the 4000-char budget enforced by
+        test_prompt_sizes — it emits no extra text vs the pre-feature
+        baseline."""
+        _, _, example = self._fragments(3)
+        self.assertLess(len(example), 4000)
+
+
+# =============================================================================
 # 10. Zod-equivalent server-side validation (Python mirror for parity)
 # =============================================================================
 

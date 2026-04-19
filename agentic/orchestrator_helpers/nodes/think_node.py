@@ -247,6 +247,7 @@ async def think_node(state: AgentState, config, *, llm, guidance_queues, neo4j_c
         phase=phase,
         allowed_phases=get_setting("FIRETEAM_ALLOWED_PHASES", ["informational"]),
         max_members=int(get_setting("FIRETEAM_MAX_MEMBERS", 5)),
+        propensity=int(get_setting("FIRETEAM_PROPENSITY", 3)),
     )
 
     system_prompt = REACT_SYSTEM_PROMPT.format(

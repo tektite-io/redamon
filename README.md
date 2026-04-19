@@ -13,11 +13,12 @@
 
 <p align="center">
   <a href="https://github.com/samugit83/redamon/stargazers"><img height="24" src="https://img.shields.io/github/stars/samugit83/redamon?style=flat&color=2E8B57&label=Stars" alt="GitHub Stars"/></a>
-  <img height="24" src="https://img.shields.io/badge/v3.9.5-release-2E8B57?style=flat" alt="Version 3.9.5"/>
+  <img height="24" src="https://img.shields.io/badge/v4.0.0-release-2E8B57?style=flat" alt="Version 4.0.0"/>
   <img height="24" src="https://img.shields.io/badge/WARNING-SECURITY%20TOOL-B22222?style=flat" alt="Security Tool Warning"/>
   <img height="24" src="https://img.shields.io/badge/LICENSE-MIT-4169A1?style=flat" alt="MIT License"/>
   <img height="24" src="https://img.shields.io/badge/END--TO--END-PIPELINE-A01025?style=flat" alt="End-to-End Pipeline"/>
   <img height="24" src="https://img.shields.io/badge/AI-AUTONOMOUS%20AGENT-6A5ACD?style=flat&logo=openai&logoColor=white" alt="AI Powered"/>
+  <a href="https://github.com/samugit83/redamon/wiki/Fireteam-Parallel-Specialists"><img height="24" src="https://img.shields.io/badge/%F0%9F%94%A5%20FIRETEAM-PARALLEL%20MULTI--AGENT-7C3AED?style=flat" alt="Fireteam Parallel Multi-Agent"/></a>
   <img height="24" src="https://img.shields.io/badge/CONFIGURABLE-AUTONOMY-CC7722?style=flat" alt="Configurable Autonomy"/>
   <img height="24" src="https://img.shields.io/badge/Kali-Powered-466A7A?style=flat&logo=kalilinux&logoColor=white" alt="Kali Powered"/>
   <img height="24" src="https://img.shields.io/badge/Docker-Compose-1A7EC2?style=flat&logo=docker&logoColor=white" alt="Docker"/>
@@ -443,7 +444,7 @@ Run **any single tool** from the pipeline independently without re-running the e
 
 A **LangGraph-based autonomous agent** implementing the ReAct pattern. It progresses through three phases — **Informational** (intelligence gathering, graph queries, Shodan, Google dorking), **Exploitation** (Metasploit, Hydra credential testing, social engineering simulation), and **Post-Exploitation** (enumeration, lateral movement). The agent executes 14 security tools via MCP servers inside a Kali sandbox, supports parallel tool execution via **Wave Runner**, and provides real-time chat interaction with guidance, stop/resume, and approval workflows. **Deep Think** mode enables structured strategic analysis before acting.
 
-> **[Wiki: AI Agent Guide](https://github.com/samugit83/redamon/wiki/AI-Agent-Guide)** | **[Technical: README.PENTEST_AGENT.md](readmes/README.PENTEST_AGENT.md)**
+> **[Wiki: AI Agent Guide](https://github.com/samugit83/redamon/wiki/AI-Agent-Guide)** | **[Technical: README.AGENTIC_SYSTEM.md](readmes/README.AGENTIC_SYSTEM.md)**
 
 <p align="center">
   <img src="assets/exploit.gif" alt="RedAmon Exploitation Demo" width="100%"/>
@@ -479,6 +480,14 @@ A **LangGraph-based autonomous agent** implementing the ReAct pattern. It progre
 
 <sub>All MCP tools run inside a Kali Linux sandbox container. Tools marked as dangerous require manual confirmation before execution. Stealth mode restricts active tools to passive-only or single-target operations. **Note:** WPScan is licensed under the [WPScan Public Source License](https://github.com/wpscanteam/wpscan/blob/master/LICENSE) (not MIT). Free for pentesting assessments and personal use; commercial use may require a separate license from [wpscan.com](https://wpscan.com).</sub>
 
+### Fireteam — Parallel Specialist Sub-Agents
+
+The agent's most powerful execution mode. When an objective decomposes into **independent investigation angles** — auth surface, route map, header policy; or 5 candidate CVEs to triage in parallel — the root agent fans out into N **specialist sub-agents** that work concurrently inside the same backend, each running its own multi-step ReAct loop with a focused mission. This is RedAmon's implementation of the **Scatter-Gather ReAct (SG-ReAct)** architectural pattern: a root agent that decides when to fan out, a bounded fireteam of specialists that work in parallel, and a fan-in step that merges their findings back into a single consolidated worldview.
+
+Every safety guarantee that applies to the root agent also applies to every member: hard guardrails, soft guardrails, phase gating, Rules of Engagement, and dangerous-tool confirmations (handled **per-member, in parallel** — N members can each be awaiting your approval on their own panel simultaneously without serializing). Recursion is forbidden (a member cannot itself deploy a fireteam) and every wave has a hard cap on members, an iteration budget per member, and a wall-clock timeout. The result is wall-clock parallelism without coordination chaos, predictable termination, and an audit trail where every action is attributable to the specialist that produced it.
+
+> **[Wiki: Fireteam — Parallel Specialists](https://github.com/samugit83/redamon/wiki/Fireteam-Parallel-Specialists)** | **[Technical: README.AGENTIC_SYSTEM.md](readmes/README.AGENTIC_SYSTEM.md#fireteam--parallel-specialist-sub-agents)**
+
 ### AI Model Providers
 
 Supports **5 providers** and **400+ models**: OpenAI (GPT-5.2, GPT-5, GPT-4.1), Anthropic (Claude Opus 4.6, Sonnet 4.5), OpenRouter (300+ models), AWS Bedrock, and any **OpenAI-compatible endpoint** (Ollama, vLLM, LM Studio, Groq, etc.). Models are dynamically fetched — no hardcoded lists.
@@ -495,7 +504,7 @@ A **Neo4j knowledge graph** with 17 node types and 20+ relationship types — th
 
 A persistent, evolutionary graph tracking everything the AI agent does — tool executions, discoveries, failures, and strategic decisions. Structured chain context replaces flat execution traces, improving agent efficiency by 25%+. Cross-session memory means the agent never starts from zero.
 
-> **[Wiki: EvoGraph](https://github.com/samugit83/redamon/wiki/EvoGraph-Attack-Chain-Evolution)** | **[Technical: README.PENTEST_AGENT.md](readmes/README.PENTEST_AGENT.md#evograph--evolutive-attack-chain-graph)**
+> **[Wiki: EvoGraph](https://github.com/samugit83/redamon/wiki/EvoGraph-Attack-Chain-Evolution)** | **[Technical: README.AGENTIC_SYSTEM.md](readmes/README.AGENTIC_SYSTEM.md#evograph--evolutive-attack-chain-graph)**
 
 ### Multi-Session Parallel Attack Chains
 
@@ -702,7 +711,7 @@ flowchart TB
 | **Recon Orchestrator** | Container lifecycle management via Docker SDK | [README.RECON_ORCHESTRATOR.md](readmes/README.RECON_ORCHESTRATOR.md) |
 | **Graph Database** | Neo4j attack surface mapping with multi-tenant support | [README.GRAPH_DB.md](readmes/README.GRAPH_DB.md) · [GRAPH.SCHEMA.md](readmes/GRAPH.SCHEMA.md) |
 | **MCP Tool Servers** | Security tools via Model Context Protocol (Kali sandbox) | [README.MCP.md](readmes/README.MCP.md) |
-| **AI Agent Orchestrator** | LangGraph-based autonomous agent with ReAct pattern | [README.PENTEST_AGENT.md](readmes/README.PENTEST_AGENT.md) |
+| **AI Agent Orchestrator** | LangGraph-based autonomous agent with ReAct pattern | [README.AGENTIC_SYSTEM.md](readmes/README.AGENTIC_SYSTEM.md) |
 | **CypherFix Agents** | Automated triage + code fix + GitHub PR | [README.CYPHERFIX_AGENTS.md](readmes/README.CYPHERFIX_AGENTS.md) |
 | **Web Application** | Next.js dashboard for visualization and AI interaction | [README.WEBAPP.md](readmes/README.WEBAPP.md) |
 | **GVM Scanner** | Greenbone/OpenVAS network vulnerability scanner (170K+ NVTs) | [README.GVM.md](readmes/README.GVM.md) |

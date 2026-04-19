@@ -17,6 +17,7 @@ export const FireteamSettingsSchema = z.object({
   fireteamMemberMaxIterations: z.number().int().min(5).max(50).optional(),
   fireteamTimeoutSec: z.number().int().min(60).max(7200).optional(),
   fireteamAllowedPhases: z.array(z.enum(PHASES)).min(1).optional(),
+  fireteamPropensity: z.number().int().min(1).max(5).optional(),
 })
 
 /**

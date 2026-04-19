@@ -7,6 +7,10 @@ interface UseMultiPartialReconSSEOptions {
   projectId: string | null
   /** The run_id of the currently visible logs drawer (only this run gets an SSE connection) */
   activeRunId: string | null
+  /** Fires on every incoming log event (even when this run is not the drawer-active one). */
+  onLog?: (runId: string, event: ReconLogEvent) => void
+  /** Fires when a run emits a terminal 'complete' event. */
+  onComplete?: (runId: string) => void
 }
 
 interface UseMultiPartialReconSSEReturn {
@@ -22,6 +26,8 @@ interface UseMultiPartialReconSSEReturn {
 export function useMultiPartialReconSSE({
   projectId,
   activeRunId,
+  onLog,
+  onComplete,
 }: UseMultiPartialReconSSEOptions): UseMultiPartialReconSSEReturn {
   const [logsMap, setLogsMap] = useState<Record<string, ReconLogEvent[]>>({})
   const [phaseMap, setPhaseMap] = useState<Record<string, { phase: string | null; phaseNumber: number | null }>>({})
@@ -32,12 +38,19 @@ export function useMultiPartialReconSSE({
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const reconnectAttempts = useRef(0)
   const activeRunIdRef = useRef(activeRunId)
+  const onLogRef = useRef(onLog)
+  const onCompleteRef = useRef(onComplete)
   const maxReconnectAttempts = 5
 
   // Keep ref in sync
   useEffect(() => {
     activeRunIdRef.current = activeRunId
   }, [activeRunId])
+
+  useEffect(() => {
+    onLogRef.current = onLog
+    onCompleteRef.current = onComplete
+  }, [onLog, onComplete])
 
   const clearLogsForRun = useCallback((runId: string) => {
     setLogsMap(prev => {
@@ -97,6 +110,10 @@ export function useMultiPartialReconSSE({
             level: data.level || 'info',
           }
 
+          // Always notify upstream (used to drive graph refetches). Independent
+          // of whether this run's drawer is open.
+          onLogRef.current?.(runId, logEvent)
+
           // Only append if this is still the active run
           if (activeRunIdRef.current === runId) {
             setLogsMap(prev => ({
@@ -135,6 +152,7 @@ export function useMultiPartialReconSSE({
           const eventData = (event as MessageEvent).data
           if (!eventData) return
 
+          onCompleteRef.current?.(runId)
           // Just close the connection; the status hook handles state
           eventSource.close()
           setIsConnected(false)

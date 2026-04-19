@@ -20,6 +20,7 @@ import { KaliTerminal } from './components/KaliTerminal'
 import { GraphViews } from './components/GraphViews'
 import { GitHubStarBanner } from './components/GitHubStarBanner'
 import { useGraphData, useDimensions, useNodeSelection, useTableData, useGraphViews } from './hooks'
+import { useStableGraphData } from './hooks/useStableGraphData'
 import { exportToExcel } from './utils/exportExcel'
 import { clusterGraphData } from './utils/clusterNodes'
 import { useTheme, useSession, useReconStatus, useReconSSE, useGvmStatus, useGvmSSE, useGithubHuntStatus, useGithubHuntSSE, useTrufflehogStatus, useTrufflehogSSE, useActiveSessions, useMultiPartialReconStatus, useMultiPartialReconSSE } from '@/hooks'
@@ -217,11 +218,26 @@ export default function GraphPage() {
   // Check if any agent conversation is active (writes attack chain nodes to graph)
   const isAgentRunning = agentSummary.activeCount > 0
 
-  // Graph data -- polls every 5s only while recon pipeline is running.
-  // Agent sessions refetch reactively via AIAssistantDrawer on WebSocket tool-completion events.
-  const { data, isLoading, error, refetch: refetchGraph, refetchFresh } = useGraphData(projectId, {
-    isReconRunning,
-  })
+  // Graph data -- no timer polling. Refetches are event-driven:
+  //  - full recon SSE log events (via useReconSSE onLog)
+  //  - partial recon SSE log events (via useMultiPartialReconSSE onLog)
+  //  - agent tool-completion websocket events (via AIAssistantDrawer onRefetchGraph)
+  //  - pipeline completion (refetchAfterCompletion)
+  const { data, isLoading, error, refetch: refetchGraph, refetchFresh } = useGraphData(projectId)
+
+  // Debounced refetch: SSE log events fire rapidly during a scan; we only need
+  // to re-pull the graph at most once per ~1.5s to pick up newly written nodes.
+  const refetchGraphDebounceRef = useRef<NodeJS.Timeout | null>(null)
+  const triggerGraphRefetch = useCallback(() => {
+    if (refetchGraphDebounceRef.current) return
+    refetchGraphDebounceRef.current = setTimeout(() => {
+      refetchGraphDebounceRef.current = null
+      refetchGraph()
+    }, 1500)
+  }, [refetchGraph])
+  useEffect(() => () => {
+    if (refetchGraphDebounceRef.current) clearTimeout(refetchGraphDebounceRef.current)
+  }, [])
 
   // Execute filter Cypher when selected filter changes or when graph data refreshes
   // (so the filtered view stays in sync with live recon/agent data)
@@ -255,6 +271,7 @@ export default function GraphPage() {
   } = useReconSSE({
     projectId,
     enabled: reconState?.status === 'running' || reconState?.status === 'starting' || reconState?.status === 'paused' || reconState?.status === 'stopping',
+    onLog: triggerGraphRefetch,
   })
 
   // Partial Recon multi-run status hook
@@ -281,6 +298,8 @@ export default function GraphPage() {
   } = useMultiPartialReconSSE({
     projectId,
     activeRunId: activePartialReconRunId,
+    onLog: triggerGraphRefetch,
+    onComplete: triggerGraphRefetch,
   })
 
   // GVM status hook
@@ -396,26 +415,36 @@ export default function GraphPage() {
   const effectiveNodeTypeCounts = selectedFilterId ? filterNodeTypeCounts : nodeTypeCounts
   const nodeTypes = useMemo(() => Object.keys(effectiveNodeTypeCounts).sort(), [effectiveNodeTypeCounts])
 
+  // Types we've already observed at least once. Used to distinguish "user
+  // deselected this type" (still in seen set, don't re-add) from "type just
+  // appeared for the first time" (not in seen set, auto-enable).
+  const seenNodeTypesRef = useRef<Set<string>>(new Set())
+
   // Reset active node types when filter selection changes
   useEffect(() => {
+    seenNodeTypesRef.current = new Set(nodeTypes)
     setActiveNodeTypes(new Set(nodeTypes))
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedFilterId])
 
   useEffect(() => {
     if (nodeTypes.length > 0 && !tableInitialized) {
+      seenNodeTypesRef.current = new Set(nodeTypes)
       setActiveNodeTypes(new Set(nodeTypes))
       setTableInitialized(true)
-    } else if (tableInitialized) {
-      // Auto-enable newly discovered node types (e.g. attack chain nodes created mid-session)
-      setActiveNodeTypes((prev: Set<string>) => {
-        const newTypes = nodeTypes.filter((t: string) => !prev.has(t))
-        if (newTypes.length === 0) return prev
-        const next = new Set(prev)
-        newTypes.forEach((t: string) => next.add(t))
-        return next
-      })
+      return
     }
+    if (!tableInitialized) return
+    // Auto-enable genuinely new node types (never observed before) so attack
+    // chain nodes created mid-session show up. Deselected types stay hidden.
+    const genuinelyNew = nodeTypes.filter((t: string) => !seenNodeTypesRef.current.has(t))
+    if (genuinelyNew.length === 0) return
+    genuinelyNew.forEach((t: string) => seenNodeTypesRef.current.add(t))
+    setActiveNodeTypes((prev: Set<string>) => {
+      const next = new Set(prev)
+      genuinelyNew.forEach((t: string) => next.add(t))
+      return next
+    })
   }, [nodeTypes, tableInitialized])
 
   const filteredByTypeOnly = useMemo(() => {
@@ -552,8 +581,15 @@ export default function GraphPage() {
     return clusterGraphData(src)
   }, [filterGraphData, filteredGraphData])
 
+  // Stable graph data for GraphCanvas: preserves node object identity across
+  // refetches and pre-resolves link source/target string ids to node refs.
+  // Without this, incremental updates (new nodes from recon/partial recon) flash
+  // edges drawn to undefined coordinates ("edges to the void") until d3-force
+  // finishes resolving ids on its next tick.
+  const stableGraphData = useStableGraphData(clusteredGraphData)
+
   // Clusters count as single nodes for the 3D threshold — use clustered count.
-  const displayedNodeCount = clusteredGraphData?.nodes.length ?? 0
+  const displayedNodeCount = stableGraphData?.nodes.length ?? 0
   const effectiveIs3D = is3D && displayedNodeCount <= AUTO_2D_THRESHOLD
 
   // Effective table rows: use filter data when a data filter is active
@@ -1165,7 +1201,7 @@ export default function GraphPage() {
         <div ref={contentRef} className={styles.content}>
           {activeView === 'graph' ? (
             <GraphCanvas
-              data={clusteredGraphData}
+              data={stableGraphData}
               isLoading={filterLoading || isLoading}
               error={error}
               projectId={projectId || ''}

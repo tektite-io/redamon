@@ -356,6 +356,7 @@ export function AgentBehaviourSection({ data, updateField }: AgentBehaviourSecti
             const maxMembers = (data as any).fireteamMaxMembers ?? 5
             const memberMaxIter = (data as any).fireteamMemberMaxIterations ?? 20
             const timeoutSec = (data as any).fireteamTimeoutSec ?? 3600
+            const propensity = (data as any).fireteamPropensity ?? 3
             const allowedPhasesRaw = (data as any).fireteamAllowedPhases ?? ['informational', 'exploitation', 'post_exploitation']
             const allowedPhases: string[] = Array.isArray(allowedPhasesRaw)
               ? allowedPhasesRaw
@@ -470,6 +471,31 @@ export function AgentBehaviourSection({ data, updateField }: AgentBehaviourSecti
                         Phases in which the agent may deploy fireteams. Recon (informational) is safe; exploitation/post-exploitation are deeper and usually serial.
                       </span>
                     </div>
+                    <div className={styles.fieldGroup}>
+                      <label className={styles.fieldLabel}>
+                        Fireteam propensity: <strong>{propensity}/5</strong>
+                      </label>
+                      <input
+                        type="range"
+                        min={1}
+                        max={5}
+                        step={1}
+                        value={propensity}
+                        onChange={(e) => {
+                          const v = Math.max(1, Math.min(5, parseInt(e.target.value) || 3))
+                          updateField('fireteamPropensity' as any, v as any)
+                        }}
+                        style={{ width: '100%' }}
+                      />
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.7rem', color: 'var(--text-muted, #888)', marginTop: 2 }}>
+                        <span>1 - only very complex tasks</span>
+                        <span>3 - balanced (default)</span>
+                        <span>5 - deploy aggressively</span>
+                      </div>
+                      <span className={styles.fieldHint}>
+                        How strongly the agent leans toward deploying a fireteam over single-agent or plan_tools. Injected into the system prompt as a directive the LLM must follow.
+                      </span>
+                    </div>
                     {crossError && (
                       <div className={styles.shodanWarning} style={{ borderColor: 'rgba(239, 68, 68, 0.4)', background: 'rgba(239, 68, 68, 0.08)' }}>
                         <AlertTriangle size={14} style={{ color: '#ef4444' }} />
@@ -518,6 +544,18 @@ export function AgentBehaviourSection({ data, updateField }: AgentBehaviourSecti
                   min={1000}
                 />
                 <span className={styles.fieldHint}>Truncation limit for tool output</span>
+              </div>
+              <div className={styles.fieldGroup}>
+                <label className={styles.fieldLabel}>Plan Max Parallel Tools</label>
+                <input
+                  type="number"
+                  className="textInput"
+                  value={data.agentPlanMaxParallelTools ?? 10}
+                  onChange={(e) => updateField('agentPlanMaxParallelTools', parseInt(e.target.value) || 10)}
+                  min={1}
+                  max={50}
+                />
+                <span className={styles.fieldHint}>Concurrent tools per plan wave (root + fireteam); extras queue</span>
               </div>
             </div>
           </div>

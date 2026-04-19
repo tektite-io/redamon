@@ -47,33 +47,17 @@ async function fetchGraphData(projectId: string, fresh = false): Promise<GraphDa
   return data
 }
 
-const AUTO_POLL_DISABLE_THRESHOLD = 2000
-
-interface UseGraphDataOptions {
-  isReconRunning?: boolean
-}
-
-export function useGraphData(projectId: string | null, options?: UseGraphDataOptions) {
-  const { isReconRunning = false } = options || {}
+export function useGraphData(projectId: string | null) {
   const queryClient = useQueryClient()
 
-  // Agent sessions no longer poll -- the AIAssistantDrawer triggers a refetch
-  // via onRefetchGraph on TOOL_COMPLETE / FIRETEAM_TOOL_COMPLETE / TASK_COMPLETE.
-  // Recon pipelines still poll because they write nodes asynchronously without
-  // streaming completion events into this hook.
-  const shouldPoll = isReconRunning
-
+  // No timer-based polling. Refetches are driven by events (SSE log activity from
+  // full/partial recon, agent tool-completion websockets, pipeline completion).
   const query = useQuery({
     queryKey: ['graph', projectId],
     queryFn: () => fetchGraphData(projectId!),
     enabled: !!projectId,
-    refetchInterval: (query) => {
-      if (!shouldPoll) return false
-      const nodeCount = query.state.data?.nodes?.length ?? 0
-      if (nodeCount > AUTO_POLL_DISABLE_THRESHOLD) return false
-      return 5000
-    },
-    staleTime: shouldPoll ? 4000 : 30000,
+    refetchInterval: false,
+    staleTime: 30000,
     // Only re-render the component when data or error actually change
     notifyOnChangeProps: ['data', 'error', 'isLoading'],
   })

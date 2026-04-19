@@ -431,7 +431,7 @@ The agent streams events to the frontend in real-time via WebSocket (`/ws/agent`
 
 Multiple agent sessions can run in parallel against the same target, each pursuing different attack paths (e.g., one brute-forcing SSH while another exploits a web CVE). Sessions are isolated by `session_id`.
 
-> For the complete WebSocket protocol spec, state diagrams, multi-objective support, RoE guardrails, and EvoGraph attack chain recording, see [README.PENTEST_AGENT.md](README.PENTEST_AGENT.md).
+> For the complete WebSocket protocol spec, state diagrams, multi-objective support, RoE guardrails, and EvoGraph attack chain recording, see [README.AGENTIC_SYSTEM.md](README.AGENTIC_SYSTEM.md).
 
 ### 4.2 CypherFix Agents
 
@@ -921,7 +921,7 @@ All deep-dive documentation lives in the `readmes/` folder alongside this file.
 
 | Document | What it covers |
 |----------|----------------|
-| [README.PENTEST_AGENT.md](README.PENTEST_AGENT.md) | Full pentest agent architecture: ReAct loop, LangGraph state machine, WebSocket protocol, tool specs, multi-objective support, RoE guardrails, EvoGraph attack chains, prompt token optimization |
+| [README.AGENTIC_SYSTEM.md](README.AGENTIC_SYSTEM.md) | Full pentest agent architecture: ReAct loop, LangGraph state machine, WebSocket protocol, tool specs, multi-objective support, RoE guardrails, EvoGraph attack chains, prompt token optimization |
 | [README.CYPHERFIX_AGENTS.md](README.CYPHERFIX_AGENTS.md) | Triage + CodeFix agents: hybrid architecture, prioritization algorithm, 11 code tools, diff approval flow, GitHub PR integration, WebSocket protocols |
 
 

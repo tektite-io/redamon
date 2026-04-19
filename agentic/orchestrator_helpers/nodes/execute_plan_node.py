@@ -364,23 +364,37 @@ async def execute_plan_node(
                 logger.warning(f"Error emitting plan_complete after mutex reject: {e}")
         return {"_current_plan": plan_data}
 
-    # Execute all steps in parallel
-    tasks = [
-        _execute_single_step(
-            step,
-            i,
-            len(steps),
-            phase=phase,
-            wave_id=wave_id,
-            user_id=user_id,
-            project_id=project_id,
-            session_id=session_id,
-            tool_executor=tool_executor,
-            streaming_cb=streaming_cb,
-            session_manager_base=session_manager_base,
+    # Cap concurrent tools inside this wave via a per-wave semaphore. Both the
+    # root agent and every fireteam member funnel through this node, so this
+    # single knob applies uniformly. A 20-step plan with cap=10 runs the first
+    # 10 immediately and parks the other 10 on the semaphore queue — no tool
+    # is dropped, nothing is reordered. Default 10 (see project_settings.py).
+    from project_settings import get_setting
+    max_parallel = max(1, int(get_setting('PLAN_MAX_PARALLEL_TOOLS', 10) or 10))
+    wave_semaphore = asyncio.Semaphore(max_parallel)
+    if len(steps) > max_parallel:
+        logger.info(
+            f"Plan wave {wave_id} has {len(steps)} steps; "
+            f"throttling concurrency to {max_parallel}"
         )
-        for i, step in enumerate(steps)
-    ]
+
+    async def _bounded_step(step, index):
+        async with wave_semaphore:
+            return await _execute_single_step(
+                step,
+                index,
+                len(steps),
+                phase=phase,
+                wave_id=wave_id,
+                user_id=user_id,
+                project_id=project_id,
+                session_id=session_id,
+                tool_executor=tool_executor,
+                streaming_cb=streaming_cb,
+                session_manager_base=session_manager_base,
+            )
+
+    tasks = [_bounded_step(step, i) for i, step in enumerate(steps)]
 
     results = await asyncio.gather(*tasks, return_exceptions=True)
 

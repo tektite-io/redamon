@@ -60,6 +60,7 @@ DEFAULT_AGENT_SETTINGS: dict[str, Any] = {
     'FIRETEAM_TIMEOUT_SEC': 3600,                  # wall-clock per fireteam (raised to accommodate 30-min tool timeouts)
     'FIRETEAM_ALLOWED_PHASES': ['informational', 'exploitation', 'post_exploitation'],
     'FIRETEAM_CONFIRMATION_TIMEOUT_SEC': 600,    # how long a member waits for operator approval before auto-rejecting
+    'FIRETEAM_PROPENSITY': 3,                    # 1-5 scalar: how strongly LLM is pushed to deploy fireteams (3=baseline, 1=reluctant, 5=aggressive)
 
     # Phase Configuration
     'ACTIVATE_POST_EXPL_PHASE': True,
@@ -77,6 +78,14 @@ DEFAULT_AGENT_SETTINGS: dict[str, Any] = {
     'MAX_ITERATIONS': 100,
     'EXECUTION_TRACE_MEMORY_STEPS': 100,
     'TOOL_OUTPUT_MAX_CHARS': 20000,
+    # Cap on concurrent tools inside ONE plan_tools wave. Applies to both the
+    # root agent and every fireteam member because both paths execute through
+    # execute_plan_node. Semaphore semantics: a 20-step plan with cap=10 runs
+    # the first 10 immediately and queues the other 10 on the semaphore, so
+    # no tool is dropped. Primary purpose: prevent SSE head-of-line blocking
+    # on the MCP kali-sandbox stream (which tripped sse_read_timeout under
+    # heavy fan-out and forced agent-container restarts pre-reconnect-fix).
+    'PLAN_MAX_PARALLEL_TOOLS': 10,
 
     # Approval Gates
     'REQUIRE_APPROVAL_FOR_EXPLOITATION': True,
@@ -277,6 +286,7 @@ def fetch_agent_settings(project_id: str, webapp_url: str) -> dict[str, Any]:
     settings['REQUIRE_APPROVAL_FOR_POST_EXPLOITATION'] = project.get('agentRequireApprovalForPostExploitation', DEFAULT_AGENT_SETTINGS['REQUIRE_APPROVAL_FOR_POST_EXPLOITATION'])
     settings['REQUIRE_TOOL_CONFIRMATION'] = project.get('agentRequireToolConfirmation', DEFAULT_AGENT_SETTINGS['REQUIRE_TOOL_CONFIRMATION'])
     settings['TOOL_OUTPUT_MAX_CHARS'] = project.get('agentToolOutputMaxChars', DEFAULT_AGENT_SETTINGS['TOOL_OUTPUT_MAX_CHARS'])
+    settings['PLAN_MAX_PARALLEL_TOOLS'] = int(project.get('agentPlanMaxParallelTools', DEFAULT_AGENT_SETTINGS['PLAN_MAX_PARALLEL_TOOLS']))
     settings['CYPHER_MAX_RETRIES'] = project.get('agentCypherMaxRetries', DEFAULT_AGENT_SETTINGS['CYPHER_MAX_RETRIES'])
     settings['LLM_PARSE_MAX_RETRIES'] = project.get('agentLlmParseMaxRetries', DEFAULT_AGENT_SETTINGS['LLM_PARSE_MAX_RETRIES'])
     settings['DEEP_THINK_ENABLED'] = project.get('agentDeepThinkEnabled', DEFAULT_AGENT_SETTINGS['DEEP_THINK_ENABLED'])
@@ -308,6 +318,7 @@ def fetch_agent_settings(project_id: str, webapp_url: str) -> dict[str, Any]:
     settings['FIRETEAM_TIMEOUT_SEC'] = int(project.get('fireteamTimeoutSec', DEFAULT_AGENT_SETTINGS['FIRETEAM_TIMEOUT_SEC']))
     settings['FIRETEAM_ALLOWED_PHASES'] = list(project.get('fireteamAllowedPhases', DEFAULT_AGENT_SETTINGS['FIRETEAM_ALLOWED_PHASES']))
     settings['FIRETEAM_CONFIRMATION_TIMEOUT_SEC'] = int(project.get('fireteamConfirmationTimeoutSec', DEFAULT_AGENT_SETTINGS['FIRETEAM_CONFIRMATION_TIMEOUT_SEC']))
+    settings['FIRETEAM_PROPENSITY'] = int(project.get('fireteamPropensity', DEFAULT_AGENT_SETTINGS['FIRETEAM_PROPENSITY']))
     settings['PHISHING_SMTP_CONFIG'] = project.get('phishingSmtpConfig', DEFAULT_AGENT_SETTINGS['PHISHING_SMTP_CONFIG'])
     settings['DOS_MAX_DURATION'] = project.get('dosMaxDuration', DEFAULT_AGENT_SETTINGS['DOS_MAX_DURATION'])
     settings['DOS_MAX_ATTEMPTS'] = project.get('dosMaxAttempts', DEFAULT_AGENT_SETTINGS['DOS_MAX_ATTEMPTS'])

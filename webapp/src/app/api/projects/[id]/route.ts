@@ -104,7 +104,8 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     // Only validate when at least one fireteam field is being touched.
     const FIRETEAM_FIELDS = ['fireteamEnabled', 'fireteamMaxConcurrent',
       'fireteamMaxMembers', 'fireteamMemberMaxIterations',
-      'fireteamTimeoutSec', 'fireteamAllowedPhases'] as const
+      'fireteamTimeoutSec', 'fireteamAllowedPhases',
+      'fireteamPropensity'] as const
     const touchesFireteam = FIRETEAM_FIELDS.some(k => k in updateData)
     let fireteamOldValues: Record<string, unknown> | null = null
     if (touchesFireteam) {

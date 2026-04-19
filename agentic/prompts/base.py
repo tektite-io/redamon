@@ -112,7 +112,41 @@ Example (exploitation fan-out against a mapped surface):
 """
 
 
-def build_fireteam_prompt_fragments(enabled: bool, phase: str, allowed_phases, max_members: int = 5):
+_PROPENSITY_GUIDANCE = {
+    1: (
+        "## FIRETEAM PROPENSITY: 1/5 - VERY RELUCTANT\n"
+        "Your operator has set you to the MOST CONSERVATIVE fireteam posture. "
+        "You MUST NOT deploy a fireteam unless the task is EXTREMELY complex and has AT LEAST 3 clearly "
+        "independent attack surfaces, EACH requiring 5 or more tool iterations on its own. "
+        "In ALL other cases, prefer use_tool or plan_tools even if it means sequential work. "
+        "When in doubt: DO NOT deploy.\n\n"
+    ),
+    2: (
+        "## FIRETEAM PROPENSITY: 2/5 - RELUCTANT\n"
+        "Your operator prefers single-agent or plan_tools execution. "
+        "Deploy a fireteam ONLY when the task has AT LEAST 2 genuinely independent subtasks, each requiring "
+        "4 or more tool iterations, AND sequential execution would waste significant wall-clock. "
+        "For most tasks: use plan_tools instead.\n\n"
+    ),
+    4: (
+        "## FIRETEAM PROPENSITY: 4/5 - EAGER\n"
+        "Your operator favors parallel execution. When a task has ANY independent parallel angles "
+        "(different attack surfaces, separate targets, distinct vuln classes), PREFER deploying a fireteam "
+        "over sequential plan_tools. Even 2 subtasks with 2-3 tool iterations each is worth fanning out. "
+        "Default to fireteam whenever the work is not strictly linear.\n\n"
+    ),
+    5: (
+        "## FIRETEAM PROPENSITY: 5/5 - AGGRESSIVE\n"
+        "Your operator has set you to MAXIMUM fan-out. You MUST deploy a fireteam for ANY task that "
+        "can be split into 2 or more independent subtasks, regardless of how many tool iterations each needs. "
+        "Parallel execution is the DEFAULT strategy. Only fall back to plan_tools or use_tool when the "
+        "work is strictly sequential (shared session, single endpoint, dependent outputs). "
+        "Err strongly on the side of deploying.\n\n"
+    ),
+}
+
+
+def build_fireteam_prompt_fragments(enabled: bool, phase: str, allowed_phases, max_members: int = 5, propensity: int = 3):
     """Return (action_enum_fragment, plan_field_fragment, example_section).
 
     When enabled AND current phase is in allowed_phases, the fragments inject
@@ -125,6 +159,12 @@ def build_fireteam_prompt_fragments(enabled: bool, phase: str, allowed_phases, m
     (default 5) into the prompt text so the LLM sees the actual per-project cap
     rather than a hardcoded number. The Pydantic ``FireteamPlan`` model still
     enforces an absolute upper bound (8) at parse time as a safety net.
+
+    ``propensity`` (1-5, default 3) tunes how eagerly the LLM is pushed
+    toward deploy_fireteam vs cheaper alternatives. 3 emits no extra text
+    (baseline). 1/2 prepend reluctant guidance; 4/5 prepend aggressive
+    guidance. The text is strongly imperative so the LLM treats it as
+    operator policy rather than advice.
     """
     gate_open = bool(enabled) and phase in (allowed_phases or [])
     if not gate_open:
@@ -133,7 +173,7 @@ def build_fireteam_prompt_fragments(enabled: bool, phase: str, allowed_phases, m
     plan_field = '\n    "fireteam_plan": "<only if action=deploy_fireteam: see deploy_fireteam example below>",'
     # Use safe .format — no other curly-brace placeholders besides JSON literals
     # which are pre-escaped as {{ / }} in the template source.
-    example = _FIRETEAM_PROMPT_BLOCK.format(max_members=int(max_members))
+    example = _PROPENSITY_GUIDANCE.get(int(propensity), "") + _FIRETEAM_PROMPT_BLOCK.format(max_members=int(max_members))
     return (action_enum, plan_field, example)
 
 

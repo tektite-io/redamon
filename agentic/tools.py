@@ -84,6 +84,13 @@ class MCPToolsManager:
         self.playwright_url = playwright_url or os.environ.get('MCP_PLAYWRIGHT_URL', 'http://host.docker.internal:8005/sse')
         self.client: Optional[MultiServerMCPClient] = None
         self._tools_cache: Dict[str, any] = {}
+        # Monotonic counter of how many times the MCP client has been (re)built.
+        # Incremented on every successful get_tools(). Callers snapshot this
+        # before a tool call; if the call fails with a transport error they
+        # pass the snapshot to reconnect() so only the first racer rebuilds.
+        self._generation: int = 0
+        # Serialises reconnects across concurrent fireteam tool calls.
+        self._reconnect_lock: asyncio.Lock = asyncio.Lock()
 
     async def get_tools(self, max_retries: int = 5, retry_delay: float = 10.0) -> List:
         """
@@ -140,7 +147,8 @@ class MCPToolsManager:
                     self._tools_cache[tool_name] = tool
                     all_tools.append(tool)
 
-                logger.info(f"Loaded {len(all_tools)} tools from MCP servers: {list(self._tools_cache.keys())}")
+                self._generation += 1
+                logger.info(f"Loaded {len(all_tools)} tools from MCP servers (gen {self._generation}): {list(self._tools_cache.keys())}")
                 return all_tools
 
             except Exception as e:
@@ -155,6 +163,63 @@ class MCPToolsManager:
                     logger.error(f"Failed to connect to MCP servers after {max_retries} attempts: {e}")
                     logger.warning("Continuing without MCP tools")
                     return []
+
+    @property
+    def generation(self) -> int:
+        """Generation counter of the current MCP client; see reconnect()."""
+        return self._generation
+
+    def list_tools(self) -> List:
+        """Snapshot of currently cached MCP tools (empty if disconnected)."""
+        return list(self._tools_cache.values())
+
+    async def reconnect(self, seen_generation: int, reason: str = "") -> tuple:
+        """
+        Rebuild the MCP client after a dead-session failure.
+
+        The MCP SSE transport is one long-lived connection per server with no
+        auto-reconnect. When kali-sandbox half-closes the stream (usually a
+        long-running tool tripping sse_read_timeout), the anyio TaskGroup
+        holding the ClientSession cancels and every later tool.ainvoke() fails
+        with "Connection closed" / "unhandled errors in a TaskGroup". Without
+        this rebuild the whole agent container had to be restarted.
+
+        Serialised via _reconnect_lock so a fireteam wave that all fail at
+        once share one rebuild: the first acquirer checks its snapshot against
+        _generation, rebuilds, and bumps _generation; every later acquirer
+        sees _generation advanced past their snapshot and returns the fresh
+        tools without rebuilding again.
+
+        Returns (current_generation, current_tools). On successful rebuild
+        current_generation == seen_generation + 1. On failure current_generation
+        is unchanged and the tools list is empty.
+        """
+        async with self._reconnect_lock:
+            if self._generation > seen_generation:
+                logger.info(
+                    f"MCP reconnect skipped: already rebuilt to gen {self._generation} "
+                    f"(caller saw gen {seen_generation})"
+                )
+                return self._generation, self.list_tools()
+
+            logger.warning(
+                f"MCP client dead (reason: {reason}); rebuilding "
+                f"(gen {self._generation} -> targeting {self._generation + 1})"
+            )
+            # Drop the dead client and now-stale tool references. The old
+            # MultiServerMCPClient does not expose a reliable close() so we
+            # rely on GC — the underlying SSE sockets are already peer-closed.
+            self.client = None
+            self._tools_cache = {}
+
+            # Shorter retry budget than startup (3×2s vs 5×10s): a failed
+            # rebuild must not block a fireteam wave for 50 s.
+            tools = await self.get_tools(max_retries=3, retry_delay=2.0)
+            if not tools:
+                logger.error(
+                    f"MCP reconnect failed: no tools loaded, still at gen {self._generation}"
+                )
+            return self._generation, tools
 
     def get_tool_by_name(self, name: str) -> Optional[any]:
         """Get a specific tool by name."""
@@ -1392,6 +1457,51 @@ def _handle_http_error(e: 'httpx.HTTPStatusError', action: str) -> str:
 # PHASE-AWARE TOOL EXECUTOR
 # =============================================================================
 
+# Exception types that signal the MCP SSE session is dead and the client
+# must be rebuilt. Names are matched rather than imported so the check is
+# resilient to anyio/httpx/httpcore version skew.
+_MCP_DEAD_SESSION_TYPES = frozenset({
+    "RemoteProtocolError",   # httpx / httpcore — peer closed SSE stream mid-chunk
+    "ClosedResourceError",   # anyio — stream closed by peer
+    "BrokenResourceError",   # anyio — unexpected I/O error
+    "ConnectError",          # httpx — TCP connect refused
+    "ReadError",             # httpx — read failed mid-stream
+})
+_MCP_DEAD_SESSION_PATTERNS = (
+    "peer closed connection",
+    "connection closed",
+    "unhandled errors in a taskgroup",  # BaseExceptionGroup.__str__() format
+)
+
+
+def _is_mcp_transport_error(exc: BaseException) -> bool:
+    """
+    True iff `exc` (or anything in its cause/context chain or ExceptionGroup
+    sub-exceptions) looks like a dead MCP SSE session. Walks the full chain
+    because anyio/httpx wrap the real transport error several layers deep.
+    """
+    seen_ids = set()
+    stack: list = [exc]
+    while stack:
+        e = stack.pop()
+        if e is None or id(e) in seen_ids:
+            continue
+        seen_ids.add(id(e))
+        if type(e).__name__ in _MCP_DEAD_SESSION_TYPES:
+            return True
+        msg = str(e).lower()
+        if any(p in msg for p in _MCP_DEAD_SESSION_PATTERNS):
+            return True
+        if e.__cause__ is not None:
+            stack.append(e.__cause__)
+        if e.__context__ is not None:
+            stack.append(e.__context__)
+        sub = getattr(e, "exceptions", None)
+        if sub:
+            stack.extend(sub)
+    return False
+
+
 class PhaseAwareToolExecutor:
     """
     Executes tools with phase-awareness.
@@ -1410,6 +1520,11 @@ class PhaseAwareToolExecutor:
         self.graph_tool = graph_tool
         self.web_search_tool = web_search_tool
         self._all_tools: Dict[str, callable] = {}
+        # Names of tools backed by MCP servers; only these trigger a reconnect
+        # on transport errors. Graph / web_search / shodan / google_dork run
+        # in-process and must not trigger MCP rebuilds if they happen to raise
+        # a look-alike error.
+        self._mcp_tool_names: set = set()
 
         # Register graph tool
         if graph_tool:
@@ -1428,11 +1543,21 @@ class PhaseAwareToolExecutor:
             self._all_tools["google_dork"] = google_dork_tool
 
     def register_mcp_tools(self, tools: List) -> None:
-        """Register MCP tools after they're loaded."""
+        """
+        Register MCP tools after they're (re)loaded.
+
+        Called once at startup and again after every successful mcp_manager
+        reconnect. Drops previously-registered MCP tool references first so
+        stale objects bound to a dead client don't linger in _all_tools.
+        """
+        for name in self._mcp_tool_names:
+            self._all_tools.pop(name, None)
+        self._mcp_tool_names.clear()
         for tool in tools:
             tool_name = getattr(tool, 'name', None)
             if tool_name:
                 self._all_tools[tool_name] = tool
+                self._mcp_tool_names.add(tool_name)
 
     def update_web_search_tool(self, tool: callable) -> None:
         """Replace the web search tool (e.g. when Tavily key changes)."""
@@ -1542,56 +1667,99 @@ class PhaseAwareToolExecutor:
                 "error": f"Tool '{tool_name}' not found"
             }
 
-        try:
-            # Execute the tool
+        # Dispatch logic pulled into a closure so we can re-invoke with a
+        # fresh tool reference after an MCP reconnect.
+        async def _invoke(active_tool) -> str:
             if tool_name == "query_graph":
-                # Graph tool expects 'question' argument
-                question = tool_args.get("question", "")
-                output = await tool.ainvoke(question)
+                output = await active_tool.ainvoke(tool_args.get("question", ""))
             elif tool_name == "web_search":
-                # Web search tool expects 'query' argument
-                query = tool_args.get("query", "")
-                output = await tool.ainvoke(query)
+                output = await active_tool.ainvoke(tool_args.get("query", ""))
             elif tool_name == "shodan":
                 # Shodan tool handles routing internally via action param
-                output = await tool.ainvoke(tool_args)
+                output = await active_tool.ainvoke(tool_args)
             elif tool_name == "google_dork":
-                # Google dork tool expects 'query' argument
-                query = tool_args.get("query", "")
-                output = await tool.ainvoke(query)
+                output = await active_tool.ainvoke(tool_args.get("query", ""))
             elif tool_name == "execute_wpscan":
                 # Inject WPScan API token if configured and not already in args
                 args = tool_args.get("args", "")
                 if getattr(self, '_wpscan_api_token', '') and '--api-token' not in args:
-                    args = f"--api-token {self._wpscan_api_token} {args}"
-                    tool_args = {**tool_args, "args": args}
-                output = await tool.ainvoke(tool_args)
+                    adjusted = {**tool_args, "args": f"--api-token {self._wpscan_api_token} {args}"}
+                else:
+                    adjusted = tool_args
+                output = await active_tool.ainvoke(adjusted)
             elif tool_name == "execute_gau":
                 # Inject URLScan API key if configured (written to ~/.gau.toml by MCP server)
                 if getattr(self, '_gau_urlscan_api_key', ''):
-                    tool_args = {**tool_args, "urlscan_api_key": self._gau_urlscan_api_key}
-                output = await tool.ainvoke(tool_args)
+                    adjusted = {**tool_args, "urlscan_api_key": self._gau_urlscan_api_key}
+                else:
+                    adjusted = tool_args
+                output = await active_tool.ainvoke(adjusted)
             else:
-                # MCP tools - invoke with the appropriate argument
-                output = await tool.ainvoke(tool_args)
+                output = await active_tool.ainvoke(tool_args)
+            # Extract clean text from MCP response (list of content blocks, etc.)
+            return self._extract_text_from_output(output)
 
-            # Extract clean text from MCP response
-            # MCP returns list of content blocks: [{'type': 'text', 'text': '...', 'id': '...'}]
-            clean_output = self._extract_text_from_output(output)
+        is_mcp = tool_name in self._mcp_tool_names
+        # Snapshot the generation BEFORE the call so concurrent failures
+        # from a fireteam wave all compare against the same pre-failure
+        # generation and only one racer rebuilds.
+        seen_gen = self.mcp_manager.generation if is_mcp else 0
 
-            return {
-                "success": True,
-                "output": clean_output,
-                "error": None
-            }
+        try:
+            clean_output = await _invoke(tool)
+            return {"success": True, "output": clean_output, "error": None}
 
-        except Exception as e:
-            logger.error(f"Tool execution failed: {tool_name} - {e}")
-            return {
-                "success": False,
-                "output": None,
-                "error": str(e)
-            }
+        except Exception as exc:
+            # Non-MCP tools or unrelated failures: original behaviour.
+            if not (is_mcp and _is_mcp_transport_error(exc)):
+                logger.error(f"Tool execution failed: {tool_name} - {exc}")
+                return {"success": False, "output": None, "error": str(exc)}
+
+            # MCP transport is dead. Rebuild (or piggy-back on a concurrent
+            # rebuild) and retry exactly once. Any failure in the retry path
+            # surfaces the retry's error — don't mask the original.
+            logger.warning(
+                f"MCP transport error on {tool_name} (gen {seen_gen}): "
+                f"{type(exc).__name__}: {exc}. Rebuilding client + retrying once."
+            )
+            try:
+                new_gen, new_tools = await self.mcp_manager.reconnect(
+                    seen_gen, reason=f"{tool_name}: {type(exc).__name__}"
+                )
+            except Exception as recon_exc:
+                logger.error(f"MCP reconnect raised: {recon_exc!r}")
+                return {"success": False, "output": None, "error": str(exc)}
+
+            if new_gen <= seen_gen or not new_tools:
+                # Reconnect didn't produce a fresh client. Surface the original.
+                logger.error(
+                    f"MCP reconnect did not advance past gen {seen_gen}; "
+                    f"surfacing original error for {tool_name}"
+                )
+                return {"success": False, "output": None, "error": str(exc)}
+
+            # Refresh our tool table with the new references bound to the
+            # freshly-rebuilt client, then resolve this tool again.
+            self.register_mcp_tools(new_tools)
+            retry_tool = self._all_tools.get(tool_name)
+            if retry_tool is None:
+                logger.error(
+                    f"{tool_name} missing from reconnected MCP tool set; "
+                    f"surfacing original error"
+                )
+                return {"success": False, "output": None, "error": str(exc)}
+
+            try:
+                clean_output = await _invoke(retry_tool)
+                logger.info(
+                    f"Retry after MCP reconnect succeeded: {tool_name} (gen {new_gen})"
+                )
+                return {"success": True, "output": clean_output, "error": None}
+            except Exception as retry_exc:
+                logger.error(
+                    f"Retry after MCP reconnect still failed for {tool_name}: {retry_exc}"
+                )
+                return {"success": False, "output": None, "error": str(retry_exc)}
 
     async def execute_with_progress(
         self,
