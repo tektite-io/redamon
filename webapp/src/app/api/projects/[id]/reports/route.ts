@@ -236,6 +236,20 @@ function condenseForAgent(data: ReturnType<typeof gatherReportData> extends Prom
         confidence: f.confidence,
       })),
     },
+    graphqlScan: {
+      totalFindings: data.graphqlScan.totalFindings,
+      endpointsTested: data.graphqlScan.endpointsTested,
+      introspectionEnabled: data.graphqlScan.introspectionEnabled,
+      bySeverity: data.graphqlScan.bySeverity,
+      byType: data.graphqlScan.byType,
+      topFindings: data.graphqlScan.findings.slice(0, 15).map(f => ({
+        title: f.title,
+        severity: f.severity,
+        vulnerabilityType: f.vulnerabilityType,
+        source: f.source,   // 'graphql_scan' vs 'graphql_cop' — helps LLM narrate differently
+        endpoint: f.endpoint,
+      })),
+    },
     otx: {
       totalPulses: data.otx.totalPulses,
       totalMalware: data.otx.totalMalware,

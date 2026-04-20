@@ -1,5 +1,5 @@
 """
-Unit tests for ZoomEye enrichment (recon/zoomeye_enrich.py).
+Unit tests for ZoomEye enrichment (recon/main_recon_modules/zoomeye_enrich.py).
 
 Mocks requests.get for https://api.zoomeye.ai/host/search.
 """
@@ -11,7 +11,7 @@ from pathlib import Path
 from unittest.mock import MagicMock, call, patch
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(REPO_ROOT / "recon"))
+sys.path.insert(0, str(REPO_ROOT / "recon" / "main_recon_modules"))
 
 from zoomeye_enrich import (
     _geoinfo_asn,

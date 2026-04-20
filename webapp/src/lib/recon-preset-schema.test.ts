@@ -129,6 +129,92 @@ describe('reconPresetSchema', () => {
     expect(result.success).toBe(true)
     expect(result.data!.cveLookupMinCvss).toBe(7.5)
   })
+
+  // ============================================================
+  // GraphQL Security Scanner fields (Phase 1 §8.1)
+  // ============================================================
+  test('accepts all 17 graphql* fields round-trip', () => {
+    const graphqlBlock = {
+      graphqlSecurityEnabled: true,
+      graphqlIntrospectionTest: true,
+      graphqlTimeout: 45,
+      graphqlRateLimit: 5,
+      graphqlConcurrency: 2,
+      graphqlAuthType: 'bearer',
+      graphqlAuthValue: 'eyJhbGci...',
+      graphqlAuthHeader: 'X-Api-Key',
+      graphqlEndpoints: 'https://api.target.com/graphql,https://v1/graphql',
+      graphqlDepthLimit: 15,
+      graphqlRetryCount: 5,
+      graphqlRetryBackoff: 1.5,
+      graphqlVerifySsl: false,
+    }
+    const result = reconPresetSchema.safeParse(graphqlBlock)
+    expect(result.success).toBe(true)
+    expect(result.data).toEqual(graphqlBlock)
+  })
+
+  test('coerces graphqlRetryBackoff (float) from string', () => {
+    const result = reconPresetSchema.safeParse({ graphqlRetryBackoff: '2.5' })
+    expect(result.success).toBe(true)
+    expect(result.data!.graphqlRetryBackoff).toBe(2.5)
+  })
+
+  test('rejects non-boolean for graphqlSecurityEnabled', () => {
+    const result = reconPresetSchema.safeParse({ graphqlSecurityEnabled: 'yes' })
+    expect(result.success).toBe(false)
+  })
+
+  test('rejects non-numeric for graphqlTimeout', () => {
+    const result = reconPresetSchema.safeParse({ graphqlTimeout: 'thirty' })
+    expect(result.success).toBe(false)
+  })
+
+  // ============================================================
+  // graphql-cop fields (Phase 2 §17.7)
+  // ============================================================
+  test('accepts all 17 graphqlCop* fields round-trip', () => {
+    const copBlock = {
+      graphqlCopEnabled: true,
+      graphqlCopDockerImage: 'dolevf/graphql-cop:1.14',
+      graphqlCopTimeout: 150,
+      graphqlCopForceScan: false,
+      graphqlCopDebug: false,
+      graphqlCopTestFieldSuggestions: true,
+      graphqlCopTestIntrospection: false,
+      graphqlCopTestGraphiql: true,
+      graphqlCopTestGetMethod: true,
+      graphqlCopTestAliasOverloading: false,
+      graphqlCopTestBatchQuery: false,
+      graphqlCopTestTraceMode: true,
+      graphqlCopTestDirectiveOverloading: false,
+      graphqlCopTestCircularIntrospection: false,
+      graphqlCopTestGetMutation: true,
+      graphqlCopTestPostCsrf: true,
+      graphqlCopTestUnhandledError: true,
+    }
+    const result = reconPresetSchema.safeParse(copBlock)
+    expect(result.success).toBe(true)
+    expect(result.data).toEqual(copBlock)
+  })
+
+  test('rejects non-boolean for graphqlCopEnabled', () => {
+    const result = reconPresetSchema.safeParse({ graphqlCopEnabled: 'maybe' })
+    expect(result.success).toBe(false)
+  })
+
+  test('rejects non-numeric for graphqlCopTimeout', () => {
+    const result = reconPresetSchema.safeParse({ graphqlCopTimeout: 'two minutes' })
+    expect(result.success).toBe(false)
+  })
+
+  test('accepts custom graphqlCopDockerImage string', () => {
+    const result = reconPresetSchema.safeParse({
+      graphqlCopDockerImage: 'my.registry.internal/forks/graphql-cop:custom-1.15',
+    })
+    expect(result.success).toBe(true)
+    expect(result.data!.graphqlCopDockerImage).toBe('my.registry.internal/forks/graphql-cop:custom-1.15')
+  })
 })
 
 // ============================================================
@@ -381,6 +467,8 @@ describe('RECON_PARAMETER_CATALOG', () => {
       'Hakrawler',
       'jsluice',
       'JS Recon',
+      'GraphQL',
+      'GraphQL Cop',
       'ffuf',
       'Arjun',
       'GAU',

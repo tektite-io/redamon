@@ -175,6 +175,13 @@ Pentesters and bug bounty hunters in the early recon phase who want a complete m
     // --- DISABLE Nuclei ---
     nucleiEnabled: false,
 
+    // --- GraphQL: OFF -- this preset's short/full descriptions both state "no vuln
+    //     scanning". GraphQL scanners (native + graphql-cop) write Vulnerability nodes
+    //     and therefore count as vuln scanning. Users who want GraphQL coverage should
+    //     pick graphql-recon or api-security.
+    graphqlSecurityEnabled: false,
+    graphqlCopEnabled: false,
+
     // --- DISABLE CVE lookup & MITRE ---
     cveLookupEnabled: false,
     mitreEnabled: false,

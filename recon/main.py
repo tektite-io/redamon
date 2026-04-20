@@ -22,6 +22,7 @@ import json
 import copy
 from pathlib import Path
 from datetime import datetime
+import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 # Add project root to path for imports (needed for graph_db, utils modules)
@@ -51,14 +52,14 @@ IP_MODE = _settings['IP_MODE']
 TARGET_IPS = _settings['TARGET_IPS']
 
 # Import recon modules
-from recon.whois_recon import whois_lookup
-from recon.domain_recon import discover_subdomains, verify_domain_ownership, reverse_dns_lookup
-from recon.port_scan import run_port_scan, run_port_scan_isolated
-from recon.masscan_scan import run_masscan_scan, run_masscan_scan_isolated
-from recon.http_probe import run_http_probe
-from recon.resource_enum import run_resource_enum
-from recon.vuln_scan import run_vuln_scan
-from recon.add_mitre import run_mitre_enrichment
+from recon.main_recon_modules.whois_recon import whois_lookup
+from recon.main_recon_modules.domain_recon import discover_subdomains, verify_domain_ownership, reverse_dns_lookup
+from recon.main_recon_modules.port_scan import run_port_scan, run_port_scan_isolated
+from recon.main_recon_modules.masscan_scan import run_masscan_scan, run_masscan_scan_isolated
+from recon.main_recon_modules.http_probe import run_http_probe
+from recon.main_recon_modules.resource_enum import run_resource_enum
+from recon.main_recon_modules.vuln_scan import run_vuln_scan
+from recon.main_recon_modules.add_mitre import run_mitre_enrichment
 
 # Output directory
 OUTPUT_DIR = Path(__file__).parent / "output"
@@ -356,10 +357,14 @@ def build_scan_type() -> str:
     return "_".join(modules) if modules else "custom"
 
 
+_save_lock = threading.Lock()
+
+
 def save_recon_file(data: dict, output_file: Path):
-    """Save recon data to JSON file."""
-    with open(output_file, 'w') as f:
-        json.dump(data, f, indent=2)
+    """Save recon data to JSON file (thread-safe)."""
+    with _save_lock:
+        with open(output_file, 'w') as f:
+            json.dump(data, f, indent=2)
 
 
 def merge_port_scan_results(combined_result: dict) -> None:
@@ -501,7 +506,7 @@ def run_ip_recon(target_ips: list, settings: dict) -> dict:
         Complete reconnaissance data dict (same shape as run_domain_recon output)
     """
     import ipaddress
-    from recon.domain_recon import dns_lookup
+    from recon.main_recon_modules.domain_recon import dns_lookup
 
     print("\n" + "=" * 70)
     print("               RedAmon - IP-Based Reconnaissance")
@@ -620,7 +625,7 @@ def run_ip_recon(target_ips: list, settings: dict) -> dict:
         print(f"\n[*][WHOIS] PHASE 3: IP WHOIS Lookup")
         print("-" * 40)
         try:
-            from recon.whois_recon import whois_lookup as ip_whois_lookup
+            from recon.main_recon_modules.whois_recon import whois_lookup as ip_whois_lookup
             # WHOIS a sample of IPs (first one per /24 block to avoid flooding)
             seen_blocks = set()
             for ip in expanded_ips:
@@ -685,7 +690,7 @@ def run_ip_recon(target_ips: list, settings: dict) -> dict:
     # =====================================================================
     if settings.get('OSINT_ENRICHMENT_ENABLED', False) and settings.get('UNCOVER_ENABLED', False):
         try:
-            from recon.uncover_enrich import run_uncover_expansion, merge_uncover_into_pipeline
+            from recon.main_recon_modules.uncover_enrich import run_uncover_expansion, merge_uncover_into_pipeline
             uncover_data = run_uncover_expansion(combined_result, settings)
             if uncover_data:
                 combined_result["uncover"] = uncover_data
@@ -723,7 +728,7 @@ def run_ip_recon(target_ips: list, settings: dict) -> dict:
         with ThreadPoolExecutor(max_workers=max_workers, thread_name_prefix="ip-g3") as g3_exec:
             g3_futures = {}
             if shodan_enabled:
-                from recon.shodan_enrich import run_shodan_enrichment_isolated
+                from recon.main_recon_modules.shodan_enrich import run_shodan_enrichment_isolated
                 g3_futures["shodan"] = g3_exec.submit(
                     run_shodan_enrichment_isolated, combined_result, settings
                 )
@@ -765,13 +770,13 @@ def run_ip_recon(target_ips: list, settings: dict) -> dict:
 
     # OSINT Enrichment (parallel, same logic as domain recon Group 3b)
     _ip_osint_tools = {
-        'censys': ('CENSYS_ENABLED', 'recon.censys_enrich', 'run_censys_enrichment_isolated', 'update_graph_from_censys'),
-        'fofa': ('FOFA_ENABLED', 'recon.fofa_enrich', 'run_fofa_enrichment_isolated', 'update_graph_from_fofa'),
-        'otx': ('OTX_ENABLED', 'recon.otx_enrich', 'run_otx_enrichment_isolated', 'update_graph_from_otx'),
-        'netlas': ('NETLAS_ENABLED', 'recon.netlas_enrich', 'run_netlas_enrichment_isolated', 'update_graph_from_netlas'),
-        'virustotal': ('VIRUSTOTAL_ENABLED', 'recon.virustotal_enrich', 'run_virustotal_enrichment_isolated', 'update_graph_from_virustotal'),
-        'zoomeye': ('ZOOMEYE_ENABLED', 'recon.zoomeye_enrich', 'run_zoomeye_enrichment_isolated', 'update_graph_from_zoomeye'),
-        'criminalip': ('CRIMINALIP_ENABLED', 'recon.criminalip_enrich', 'run_criminalip_enrichment_isolated', 'update_graph_from_criminalip'),
+        'censys': ('CENSYS_ENABLED', 'recon.main_recon_modules.censys_enrich', 'run_censys_enrichment_isolated', 'update_graph_from_censys'),
+        'fofa': ('FOFA_ENABLED', 'recon.main_recon_modules.fofa_enrich', 'run_fofa_enrichment_isolated', 'update_graph_from_fofa'),
+        'otx': ('OTX_ENABLED', 'recon.main_recon_modules.otx_enrich', 'run_otx_enrichment_isolated', 'update_graph_from_otx'),
+        'netlas': ('NETLAS_ENABLED', 'recon.main_recon_modules.netlas_enrich', 'run_netlas_enrichment_isolated', 'update_graph_from_netlas'),
+        'virustotal': ('VIRUSTOTAL_ENABLED', 'recon.main_recon_modules.virustotal_enrich', 'run_virustotal_enrichment_isolated', 'update_graph_from_virustotal'),
+        'zoomeye': ('ZOOMEYE_ENABLED', 'recon.main_recon_modules.zoomeye_enrich', 'run_zoomeye_enrichment_isolated', 'update_graph_from_zoomeye'),
+        'criminalip': ('CRIMINALIP_ENABLED', 'recon.main_recon_modules.criminalip_enrich', 'run_criminalip_enrichment_isolated', 'update_graph_from_criminalip'),
     }
     if not settings.get('OSINT_ENRICHMENT_ENABLED', False):
         enabled_ip_osint = {}
@@ -852,7 +857,7 @@ def run_ip_recon(target_ips: list, settings: dict) -> dict:
     # runs even when active scans are skipped -- uploaded files don't need live targets)
     if settings.get('JS_RECON_ENABLED', False):
         try:
-            from recon.js_recon import run_js_recon
+            from recon.main_recon_modules.js_recon import run_js_recon
             combined_result = run_js_recon(combined_result, settings=settings)
             combined_result["metadata"]["modules_executed"].append("js_recon")
             save_recon_file(combined_result, output_file)
@@ -985,7 +990,7 @@ def run_domain_recon(target: str, anonymous: bool = False, bruteforce: bool = Fa
                     whois_lookup, root_domain, save_output=False, settings=_settings
                 )
             if _settings.get('URLSCAN_ENABLED'):
-                from recon.urlscan_enrich import run_urlscan_discovery_only
+                from recon.main_recon_modules.urlscan_enrich import run_urlscan_discovery_only
                 g1_futures["urlscan"] = g1_exec.submit(
                     run_urlscan_discovery_only, root_domain, _settings
                 )
@@ -1012,7 +1017,7 @@ def run_domain_recon(target: str, anonymous: bool = False, bruteforce: bool = Fa
         if dns_enabled:
             print(f"\n[*][DNS] GROUP 2: Filtered Subdomain DNS Resolution")
             print("-" * 40)
-            from recon.domain_recon import dns_lookup, resolve_all_dns
+            from recon.main_recon_modules.domain_recon import dns_lookup, resolve_all_dns
             include_root = target_info.get("include_root_domain", False)
             # Use parallel resolve_all_dns for filtered subdomains too
             dns_workers = _settings.get('DNS_MAX_WORKERS', 50)
@@ -1052,7 +1057,7 @@ def run_domain_recon(target: str, anonymous: bool = False, bruteforce: bool = Fa
                 print(f"[-][Discovery] Subdomain discovery disabled -- using root domain only")
 
             if _settings.get('URLSCAN_ENABLED'):
-                from recon.urlscan_enrich import run_urlscan_discovery_only
+                from recon.main_recon_modules.urlscan_enrich import run_urlscan_discovery_only
                 g1_futures["urlscan"] = g1_exec.submit(
                     run_urlscan_discovery_only, root_domain, _settings
                 )
@@ -1122,7 +1127,7 @@ def run_domain_recon(target: str, anonymous: bool = False, bruteforce: bool = Fa
     # =====================================================================
     if _settings.get('OSINT_ENRICHMENT_ENABLED', False) and _settings.get('UNCOVER_ENABLED', False):
         try:
-            from recon.uncover_enrich import run_uncover_expansion, merge_uncover_into_pipeline
+            from recon.main_recon_modules.uncover_enrich import run_uncover_expansion, merge_uncover_into_pipeline
             uncover_data = run_uncover_expansion(combined_result, _settings)
             if uncover_data:
                 combined_result["uncover"] = uncover_data
@@ -1162,7 +1167,7 @@ def run_domain_recon(target: str, anonymous: bool = False, bruteforce: bool = Fa
             g3_futures = {}
 
             if shodan_enabled:
-                from recon.shodan_enrich import run_shodan_enrichment_isolated
+                from recon.main_recon_modules.shodan_enrich import run_shodan_enrichment_isolated
                 g3_futures["shodan"] = g3_exec.submit(
                     run_shodan_enrichment_isolated, combined_result, _settings
                 )
@@ -1219,7 +1224,7 @@ def run_domain_recon(target: str, anonymous: bool = False, bruteforce: bool = Fa
         print(f"\n[*][Pipeline] GROUP 3.5: Nmap Service Detection + NSE Vuln Scripts")
         print("-" * 40)
 
-        from recon.nmap_scan import run_nmap_scan
+        from recon.main_recon_modules.nmap_scan import run_nmap_scan
         combined_result = run_nmap_scan(combined_result, output_file=output_file, settings=_settings)
         combined_result["metadata"]["modules_executed"].append("nmap_scan")
 
@@ -1237,13 +1242,13 @@ def run_domain_recon(target: str, anonymous: bool = False, bruteforce: bool = Fa
     # Runs independently from port scanning; data feeds into the graph only.
     # =====================================================================
     _osint_tools = {
-        'censys': ('CENSYS_ENABLED', 'recon.censys_enrich', 'run_censys_enrichment_isolated', 'update_graph_from_censys'),
-        'fofa': ('FOFA_ENABLED', 'recon.fofa_enrich', 'run_fofa_enrichment_isolated', 'update_graph_from_fofa'),
-        'otx': ('OTX_ENABLED', 'recon.otx_enrich', 'run_otx_enrichment_isolated', 'update_graph_from_otx'),
-        'netlas': ('NETLAS_ENABLED', 'recon.netlas_enrich', 'run_netlas_enrichment_isolated', 'update_graph_from_netlas'),
-        'virustotal': ('VIRUSTOTAL_ENABLED', 'recon.virustotal_enrich', 'run_virustotal_enrichment_isolated', 'update_graph_from_virustotal'),
-        'zoomeye': ('ZOOMEYE_ENABLED', 'recon.zoomeye_enrich', 'run_zoomeye_enrichment_isolated', 'update_graph_from_zoomeye'),
-        'criminalip': ('CRIMINALIP_ENABLED', 'recon.criminalip_enrich', 'run_criminalip_enrichment_isolated', 'update_graph_from_criminalip'),
+        'censys': ('CENSYS_ENABLED', 'recon.main_recon_modules.censys_enrich', 'run_censys_enrichment_isolated', 'update_graph_from_censys'),
+        'fofa': ('FOFA_ENABLED', 'recon.main_recon_modules.fofa_enrich', 'run_fofa_enrichment_isolated', 'update_graph_from_fofa'),
+        'otx': ('OTX_ENABLED', 'recon.main_recon_modules.otx_enrich', 'run_otx_enrichment_isolated', 'update_graph_from_otx'),
+        'netlas': ('NETLAS_ENABLED', 'recon.main_recon_modules.netlas_enrich', 'run_netlas_enrichment_isolated', 'update_graph_from_netlas'),
+        'virustotal': ('VIRUSTOTAL_ENABLED', 'recon.main_recon_modules.virustotal_enrich', 'run_virustotal_enrichment_isolated', 'update_graph_from_virustotal'),
+        'zoomeye': ('ZOOMEYE_ENABLED', 'recon.main_recon_modules.zoomeye_enrich', 'run_zoomeye_enrichment_isolated', 'update_graph_from_zoomeye'),
+        'criminalip': ('CRIMINALIP_ENABLED', 'recon.main_recon_modules.criminalip_enrich', 'run_criminalip_enrichment_isolated', 'update_graph_from_criminalip'),
     }
 
     if not _settings.get('OSINT_ENRICHMENT_ENABLED', False):
@@ -1340,7 +1345,7 @@ def run_domain_recon(target: str, anonymous: bool = False, bruteforce: bool = Fa
     # runs even when active scans are skipped -- uploaded files don't need live targets)
     if _settings.get('JS_RECON_ENABLED', False):
         try:
-            from recon.js_recon import run_js_recon
+            from recon.main_recon_modules.js_recon import run_js_recon
             combined_result = run_js_recon(combined_result, settings=_settings)
             combined_result["metadata"]["modules_executed"].append("js_recon")
             save_recon_file(combined_result, output_file)
@@ -1349,40 +1354,53 @@ def run_domain_recon(target: str, anonymous: bool = False, bruteforce: bool = Fa
             print(f"[!][JsRecon] Error: {e}")
 
     if not skip_active_scans:
-        # GROUP 6 — Vuln Scan + MITRE (sequential, Nuclei internally parallel)
+        # ================================================================
+        # GROUP 6 Phase A — Parallel active vuln scanners (Nuclei || GraphQL)
+        # ================================================================
+        # Both scanners read BaseURL/Endpoint/Technology, both write Vulnerability,
+        # and they have zero data dependency on each other. Run concurrently via
+        # ThreadPoolExecutor using _isolated wrappers (each deep-copies the
+        # combined_result so there's no shared-dict race).
+        # ----------------------------------------------------------------
+        phase_a_tools: dict = {}
         if "vuln_scan" in SCAN_MODULES:
-            try:
-                combined_result = run_vuln_scan(combined_result, output_file=output_file, settings=_settings)
-                combined_result["metadata"]["modules_executed"].append("vuln_scan")
-                save_recon_file(combined_result, output_file)
-
-                if _settings.get('MITRE_ENABLED', True):
-                    try:
-                        combined_result = run_mitre_enrichment(combined_result, output_file=output_file, settings=_settings)
-                    except Exception as e:
-                        print(f"[!][Pipeline] mitre_enrichment failed: {e}")
-                        combined_result["metadata"].setdefault("phase_errors", {})["mitre_enrichment"] = str(e)
-                save_recon_file(combined_result, output_file)
-
-                _graph_update_bg("update_graph_from_vuln_scan", combined_result, USER_ID, PROJECT_ID)
-            except Exception as e:
-                print(f"[!][Pipeline] vuln_scan failed: {e}")
-                combined_result["metadata"].setdefault("phase_errors", {})["vuln_scan"] = str(e)
-                save_recon_file(combined_result, output_file)
-
-        # GROUP 6b — GraphQL Security Testing (after vuln scan, before external domains)
+            from recon.main_recon_modules.vuln_scan import run_vuln_scan_isolated
+            phase_a_tools['vuln_scan'] = run_vuln_scan_isolated
         if _settings.get('GRAPHQL_SECURITY_ENABLED', False):
-            print(f"\n[*][Pipeline] GROUP 6b: GraphQL Security Testing")
+            from recon.graphql_scan import run_graphql_scan_isolated
+            phase_a_tools['graphql_scan'] = run_graphql_scan_isolated
+
+        if phase_a_tools:
+            print(f"\n[*][Pipeline] GROUP 6 Phase A: Active Vulnerability Scanning (fan-out: {', '.join(phase_a_tools.keys())})")
+            print("-" * 40)
+            with ThreadPoolExecutor(max_workers=len(phase_a_tools)) as pool:
+                futures = {pool.submit(fn, combined_result, _settings): key
+                           for key, fn in phase_a_tools.items()}
+                for fut in as_completed(futures):
+                    key = futures[fut]
+                    try:
+                        combined_result[key] = fut.result()
+                        combined_result["metadata"]["modules_executed"].append(key)
+                        save_recon_file(combined_result, output_file)
+                        _graph_update_bg(f"update_graph_from_{key}", combined_result, USER_ID, PROJECT_ID)
+                    except Exception as e:
+                        print(f"[!][Pipeline] {key} failed: {e}")
+                        combined_result["metadata"].setdefault("phase_errors", {})[key] = str(e)
+                        save_recon_file(combined_result, output_file)
+
+        # ================================================================
+        # GROUP 6 Phase B — MITRE enrichment (depends on Nuclei CVEs)
+        # ================================================================
+        if "vuln_scan" in SCAN_MODULES and _settings.get('MITRE_ENABLED', True) and 'vuln_scan' in combined_result:
+            print(f"\n[*][Pipeline] GROUP 6 Phase B: MITRE CVE Enrichment")
             print("-" * 40)
             try:
-                from recon.graphql_scan import run_graphql_scan
-                combined_result = run_graphql_scan(combined_result, _settings)
-                combined_result["metadata"]["modules_executed"].append("graphql_scan")
+                combined_result = run_mitre_enrichment(combined_result, output_file=output_file, settings=_settings)
                 save_recon_file(combined_result, output_file)
-                _graph_update_bg("update_graph_from_graphql_scan", combined_result, USER_ID, PROJECT_ID)
+                _graph_update_bg("update_graph_from_vuln_scan", combined_result, USER_ID, PROJECT_ID)
             except Exception as e:
-                print(f"[!][GraphQL] Error: {e}")
-                combined_result["metadata"].setdefault("phase_errors", {})["graphql_scan"] = str(e)
+                print(f"[!][Pipeline] mitre_enrichment failed: {e}")
+                combined_result["metadata"].setdefault("phase_errors", {})["mitre_enrichment"] = str(e)
                 save_recon_file(combined_result, output_file)
 
     # External Domains — aggregate from all sources and persist
@@ -1783,7 +1801,7 @@ def main():
         # runs even when active scans are skipped -- uploaded files don't need live targets)
         if _settings.get('JS_RECON_ENABLED', False):
             try:
-                from recon.js_recon import run_js_recon
+                from recon.main_recon_modules.js_recon import run_js_recon
                 domain_result = run_js_recon(domain_result, settings=_settings)
                 if "metadata" in domain_result and "modules_executed" in domain_result["metadata"]:
                     if "js_recon" not in domain_result["metadata"]["modules_executed"]:

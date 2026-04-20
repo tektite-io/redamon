@@ -47,9 +47,10 @@ Network security teams and pentesters who need to map large external perimeters 
 9. MITRE enrichment classifies findings by CWE and attack patterns
 10. Security checks flag exposed admin ports, databases, open relays, and misconfigurations`,
   parameters: {
-    // Modules: domain_discovery + port_scan + http_probe
-    // No resource_enum, no vuln_scan (nuclei), no js_recon
-    scanModules: ['domain_discovery', 'port_scan', 'http_probe'],
+    // Modules: domain_discovery + port_scan + http_probe + vuln_scan
+    // vuln_scan is required for CVE lookup, MITRE enrichment, and security checks
+    // (Nuclei itself is disabled below). No resource_enum, no js_recon.
+    scanModules: ['domain_discovery', 'port_scan', 'http_probe', 'vuln_scan'],
 
     stealthMode: false,
     useTorForRecon: false,
@@ -240,5 +241,9 @@ Network security teams and pentesters who need to map large external perimeters 
     zoomEyeEnabled: false,
     criminalIpEnabled: false,
     uncoverEnabled: false,
+
+    // --- GraphQL: explicit OFF so switching from a GraphQL-enabled preset resets cleanly ---
+    graphqlSecurityEnabled: false,
+    graphqlCopEnabled: false,
   },
 }

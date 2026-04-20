@@ -460,3 +460,119 @@ def _build_vuln_scan_data_from_graph(domain: str, user_id: str, project_id: str)
             recon_data["resource_enum"]["discovered_urls"] = discovered_urls
 
     return recon_data
+
+
+def _build_graphql_data_from_graph(domain: str, user_id: str, project_id: str) -> dict:
+    """
+    Build recon_data for GraphQL security scanning.
+
+    Populates the three sections discover_graphql_endpoints() reads:
+      - http_probe.by_url        (from BaseURL nodes -- headers, status_code)
+      - resource_enum.endpoints  ({base_url: [{path, method}]} -- from Endpoint nodes)
+      - resource_enum.parameters ({base_url: [{name}]}         -- from Parameter nodes)
+      - js_recon.findings        ([{type, path, method}]       -- GraphQL-tagged JsReconFindings)
+    Plus metadata.roe so filter_by_roe() still works.
+    """
+    from graph_db import Neo4jClient
+    from recon.project_settings import get_settings
+
+    settings = get_settings()
+    recon_data = {
+        "domain": domain,
+        "http_probe": {"by_url": {}},
+        "resource_enum": {"endpoints": {}, "parameters": {}, "discovered_urls": []},
+        "js_recon": {"findings": []},
+        "metadata": {
+            "roe": {
+                "ROE_ENABLED": settings.get("ROE_ENABLED", False),
+                "ROE_EXCLUDED_HOSTS": settings.get("ROE_EXCLUDED_HOSTS", []) or [],
+            }
+        },
+    }
+
+    with Neo4jClient() as graph_client:
+        if not graph_client.verify_connection():
+            print("[!][Partial Recon] Neo4j not reachable, cannot fetch graph inputs")
+            return recon_data
+
+        driver = graph_client.driver
+        with driver.session() as session:
+            # 1) BaseURLs -> http_probe.by_url
+            result = session.run(
+                """
+                MATCH (b:BaseURL {user_id: $uid, project_id: $pid})
+                RETURN b.url AS url,
+                       b.host AS host,
+                       b.status_code AS status_code,
+                       b.content_type AS content_type
+                """,
+                uid=user_id, pid=project_id,
+            )
+            for record in result:
+                url = record["url"]
+                if not url:
+                    continue
+                recon_data["http_probe"]["by_url"][url] = {
+                    "url": url,
+                    "host": record["host"] or "",
+                    "status_code": int(record["status_code"]) if record["status_code"] is not None else 200,
+                    "content_type": record["content_type"] or "",
+                    "headers": {},
+                }
+
+            # 2) Endpoints grouped by BaseURL -> resource_enum.endpoints
+            result = session.run(
+                """
+                MATCH (b:BaseURL {user_id: $uid, project_id: $pid})
+                      -[:HAS_ENDPOINT]->(e:Endpoint)
+                WHERE e.path IS NOT NULL
+                RETURN b.url AS base_url,
+                       collect(DISTINCT {path: e.path, method: coalesce(e.method, 'GET')}) AS endpoints
+                """,
+                uid=user_id, pid=project_id,
+            )
+            for record in result:
+                base = record["base_url"]
+                if base:
+                    recon_data["resource_enum"]["endpoints"][base] = list(record["endpoints"] or [])
+
+            # 3) Parameters grouped by BaseURL -> resource_enum.parameters
+            result = session.run(
+                """
+                MATCH (b:BaseURL {user_id: $uid, project_id: $pid})
+                      -[:HAS_ENDPOINT]->(e:Endpoint)
+                      -[:HAS_PARAMETER]->(p:Parameter)
+                WHERE p.name IS NOT NULL
+                RETURN b.url AS base_url,
+                       collect(DISTINCT {name: p.name}) AS parameters
+                """,
+                uid=user_id, pid=project_id,
+            )
+            for record in result:
+                base = record["base_url"]
+                if base:
+                    recon_data["resource_enum"]["parameters"][base] = list(record["parameters"] or [])
+
+            # 4) GraphQL-tagged JsReconFindings -> js_recon.findings
+            result = session.run(
+                """
+                MATCH (jr:JsReconFinding {user_id: $uid, project_id: $pid})
+                WHERE jr.finding_type IN ['graphql', 'graphql_introspection']
+                   OR (jr.finding_type = 'rest' AND toLower(coalesce(jr.path, '')) CONTAINS 'graphql')
+                RETURN jr.finding_type AS type,
+                       jr.path AS path,
+                       coalesce(jr.method, 'POST') AS method
+                """,
+                uid=user_id, pid=project_id,
+            )
+            for record in result:
+                path = record["path"]
+                if not path:
+                    continue
+                recon_data["js_recon"]["findings"].append({
+                    "type": record["type"] or "rest",
+                    "path": path,
+                    "method": record["method"] or "POST",
+                })
+
+    return recon_data

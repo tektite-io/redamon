@@ -42,8 +42,9 @@ Security teams auditing email spoofing defenses (SPF, DMARC, DKIM), DNS administ
 4. Security checks test for missing SPF records (email spoofing risk), missing DMARC policies (no email authentication enforcement), missing DNSSEC (DNS spoofing risk), zone transfer misconfiguration (full zone disclosure), and SMTP open relay (spam/phishing relay)
 5. Shodan reverse DNS and domain DNS enrichment adds passive DNS intelligence and historical records`,
   parameters: {
-    // Modules: domain_discovery only -- no port scanning, no web probing
-    scanModules: ['domain_discovery'],
+    // Modules: domain_discovery + vuln_scan (SPF/DMARC/DNSSEC/zone-transfer/SMTP
+    // security checks all live inside vuln_scan). No port scanning, no web probing.
+    scanModules: ['domain_discovery', 'vuln_scan'],
 
     stealthMode: false,
     useTorForRecon: false,
@@ -162,5 +163,9 @@ Security teams auditing email spoofing defenses (SPF, DMARC, DKIM), DNS administ
     zoomEyeEnabled: false,
     criminalIpEnabled: false,
     uncoverEnabled: false,
+
+    // --- GraphQL: explicit OFF so switching from a GraphQL-enabled preset resets cleanly ---
+    graphqlSecurityEnabled: false,
+    graphqlCopEnabled: false,
   },
 }

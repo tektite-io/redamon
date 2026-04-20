@@ -1,5 +1,6 @@
 import type { ReconPreset } from './types'
 import { API_SECURITY } from './presets/api-security'
+import { GRAPHQL_RECON } from './presets/graphql-recon'
 import { BUG_BOUNTY_DEEP } from './presets/bug-bounty-deep'
 import { BUG_BOUNTY_QUICK } from './presets/bug-bounty-quick'
 import { FULL_ACTIVE_SCAN } from './presets/full-active-scan'
@@ -30,6 +31,7 @@ export const RECON_PRESETS: ReconPreset[] = [
   BUG_BOUNTY_QUICK,
   BUG_BOUNTY_DEEP,
   API_SECURITY,
+  GRAPHQL_RECON,
   INFRASTRUCTURE_MAPPER,
   OSINT_INVESTIGATOR,
   WEB_APP_PENTESTER,

@@ -1,5 +1,5 @@
 """
-Unit tests for Shodan Pipeline Enrichment Module (recon/shodan_enrich.py).
+Unit tests for Shodan Pipeline Enrichment Module (recon/main_recon_modules/shodan_enrich.py).
 
 Tests verify:
   - IP extraction from domain-mode and IP-mode combined_result structures
@@ -19,7 +19,7 @@ import unittest
 from unittest.mock import patch, MagicMock
 
 # Add recon dir to path
-_recon_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+_recon_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "main_recon_modules")
 sys.path.insert(0, _recon_dir)
 
 from shodan_enrich import (

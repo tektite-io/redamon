@@ -140,6 +140,13 @@ const TOOL_DESCRIPTIONS: Record<string, string> = {
     'Targets are loaded from the graph (BaseURLs + Endpoints from prior phases). ' +
     'You can also provide custom URLs below. ' +
     'Vulnerability, CVE, Endpoint, Parameter, MitreData, and Capec nodes are merged into the existing graph.',
+  GraphqlScan:
+    'Active GraphQL security scanner. Discovers GraphQL endpoints from crawled BaseURLs + Endpoints + JS findings, ' +
+    'tests for exposed introspection, extracts schema, detects sensitive field exposure, and flags mutation / proxy ' +
+    'vulnerabilities. Runs the native scanner + graphql-cop (12 external checks: alias/batch/directive/circular DoS, ' +
+    'GraphiQL detection, GET-method CSRF, trace/debug leakage, field suggestions, unhandled errors). ' +
+    'You can also provide custom GraphQL endpoint URLs below to test directly (bypasses auto-discovery). ' +
+    'Enriches Endpoint nodes with is_graphql + schema metadata and creates Vulnerability nodes.',
   SecurityChecks:
     'Runs custom security checks on discovered infrastructure: Direct IP Access, TLS/SSL certificate expiry, ' +
     'Security Headers (Referrer-Policy, Permissions-Policy, COOP/CORP/COEP), Authentication (HTTPS, cookie flags), ' +
@@ -382,6 +389,7 @@ export function PartialReconModal({
   const isNmap = toolId === 'Nmap'
   const isHttpx = toolId === 'Httpx'
   const isNuclei = toolId === 'Nuclei'
+  const isGraphql = toolId === 'GraphqlScan'
   const isSecurityChecks = toolId === 'SecurityChecks'
   const isResourceEnum = toolId === 'Katana' || toolId === 'Hakrawler' || toolId === 'Jsluice' || toolId === 'Ffuf' || toolId === 'Kiterunner' || toolId === 'JsRecon' || isNuclei
   const isArjun = toolId === 'Arjun'
@@ -389,11 +397,13 @@ export function PartialReconModal({
   const isParamSpider = toolId === 'ParamSpider'
   const isShodan = toolId === 'Shodan'
   const isOsintEnrichment = toolId === 'OsintEnrichment'
-  const hasUserInputs = isPortScanner || isNmap || isHttpx || isResourceEnum || isArjun || isGau || isParamSpider || isSecurityChecks || isShodan || isOsintEnrichment
+  const hasUserInputs = isPortScanner || isNmap || isHttpx || isResourceEnum || isArjun || isGau || isParamSpider || isSecurityChecks || isShodan || isOsintEnrichment || isGraphql
   const hasIpInput = isPortScanner || isNmap || isHttpx || isSecurityChecks || isShodan || isOsintEnrichment
   const hasSubdomainInput = toolId === 'Naabu' || isHttpx || isGau || isParamSpider || isSecurityChecks
   const hasPortInput = isNmap || isHttpx
-  const hasUrlInput = isResourceEnum || isArjun || isSecurityChecks
+  // GraphqlScan's SECTION_INPUT_MAP = [BaseURL, Endpoint]. Per PROMPT.ADD_PARTIAL_RECON.md,
+  // BaseURL-accepting tools get a URL textarea; Endpoint is graph-only (never manually entered).
+  const hasUrlInput = isResourceEnum || isArjun || isSecurityChecks || isGraphql
 
   // Subdomain validation
   const subdomainValidation = useMemo(
@@ -534,6 +544,7 @@ export function PartialReconModal({
     || (isHttpx && !loadingInputs && (graphInputs?.existing_ports_count ?? 0) === 0 && (graphInputs?.existing_subdomains_count ?? 0) === 0)
     || (toolId === 'JsRecon' && !loadingInputs && (graphInputs?.existing_baseurls_count ?? 0) === 0 && (graphInputs?.existing_endpoints_count ?? 0) === 0 && uploadedJsFiles.length === 0)
     || (isNuclei && !loadingInputs && (graphInputs?.existing_baseurls_count ?? 0) === 0 && (graphInputs?.existing_endpoints_count ?? 0) === 0)
+    || (isGraphql && !loadingInputs && (graphInputs?.existing_baseurls_count ?? 0) === 0 && (graphInputs?.existing_endpoints_count ?? 0) === 0)
     || (isResourceEnum && !isNuclei && toolId !== 'JsRecon' && !loadingInputs && (graphInputs?.existing_baseurls_count ?? 0) === 0)
     || (isArjun && !loadingInputs && (graphInputs?.existing_baseurls_count ?? 0) === 0 && (graphInputs?.existing_endpoints_count ?? 0) === 0)
     || (isSecurityChecks && !loadingInputs && (graphInputs?.existing_ips_count ?? 0) === 0 && (graphInputs?.existing_subdomains_count ?? 0) === 0 && (graphInputs?.existing_baseurls_count ?? 0) === 0)
@@ -585,6 +596,8 @@ export function PartialReconModal({
                 ? `${domain || 'No domain'} (${graphInputs?.existing_baseurls_count ?? 0} BaseURLs, ${graphInputs?.existing_endpoints_count ?? 0} Endpoints${uploadedJsFiles.length ? `, ${uploadedJsFiles.length} uploaded` : ''})`
                 : isNuclei
                 ? `${domain || 'No domain'} (${graphInputs?.existing_baseurls_count ?? 0} BaseURLs, ${graphInputs?.existing_endpoints_count ?? 0} Endpoints)`
+                : isGraphql
+                ? `${domain || 'No domain'} (${graphInputs?.existing_baseurls_count ?? 0} BaseURLs, ${graphInputs?.existing_endpoints_count ?? 0} Endpoints${graphInputs?.existing_graphql_endpoints_count ? `, ${graphInputs.existing_graphql_endpoints_count} already-flagged GraphQL` : ''})`
                 : isResourceEnum
                 ? `${domain || 'No domain'} (${graphInputs?.existing_baseurls_count ?? 0} BaseURLs)`
                 : isArjun
@@ -906,6 +919,8 @@ export function PartialReconModal({
                 ? 'https://example.com/api/users\nhttps://example.com/admin/settings'
                 : toolId === 'Jsluice' || toolId === 'JsRecon'
                 ? 'https://example.com/assets/app.js\nhttps://cdn.example.com/bundle.min.js'
+                : isGraphql
+                ? 'https://api.example.com/graphql\nhttps://api.example.com/v1/graphql'
                 : 'https://example.com\nhttps://api.example.com:8443'}
               rows={2}
               style={textareaStyle(urlValidation.errors.length > 0)}
@@ -925,6 +940,8 @@ export function PartialReconModal({
                 ? 'Full URLs to JS files or pages containing JS. Will be downloaded and analyzed for secrets, endpoints, source maps, and more.'
                 : isNuclei
                 ? 'Full URLs (http/https). Will be scanned for vulnerabilities, misconfigurations, and CVEs.'
+                : isGraphql
+                ? 'GraphQL endpoint URLs (e.g. /graphql, /api/graphql). Bypasses auto-discovery and tests these directly via introspection + graphql-cop checks.'
                 : 'Full URLs (http/https). Will be crawled to discover endpoints and parameters.'}</div>
             )}
 

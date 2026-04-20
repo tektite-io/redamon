@@ -25,6 +25,7 @@ import { KiterunnerSection } from '../sections/KiterunnerSection'
 import { ArjunSection } from '../sections/ArjunSection'
 import { JsReconSection } from '../sections/JsReconSection'
 import { NucleiSection } from '../sections/NucleiSection'
+import { GraphqlScanSection } from '../sections/GraphqlScanSection'
 import { CveLookupSection } from '../sections/CveLookupSection'
 import { MitreSection } from '../sections/MitreSection'
 import { SecurityChecksSection } from '../sections/SecurityChecksSection'
@@ -95,6 +96,7 @@ export function WorkflowNodeModal({
       case 'Arjun':             return <ArjunSection {...baseProps} />
       case 'JsRecon':           return <JsReconSection {...extendedProps} />
       case 'Nuclei':            return <NucleiSection {...baseProps} />
+      case 'GraphqlScan':       return <GraphqlScanSection {...extendedProps} />
       case 'CveLookup':         return <CveLookupSection {...baseProps} />
       case 'Mitre':             return <MitreSection {...baseProps} />
       case 'SecurityChecks':    return <SecurityChecksSection {...baseProps} />

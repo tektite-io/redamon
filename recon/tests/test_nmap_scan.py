@@ -1,5 +1,5 @@
 """
-Unit tests for Nmap Scanner Module (recon/nmap_scan.py).
+Unit tests for Nmap Scanner Module (recon/main_recon_modules/nmap_scan.py).
 
 Tests verify:
   - Target extraction from port_scan data (build_nmap_targets)
@@ -19,7 +19,7 @@ import tempfile
 from pathlib import Path
 
 # Add recon dir to path
-_recon_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+_recon_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "main_recon_modules")
 sys.path.insert(0, _recon_dir)
 
 from nmap_scan import (

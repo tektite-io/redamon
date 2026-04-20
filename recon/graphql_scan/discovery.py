@@ -289,6 +289,6 @@ def filter_by_roe(endpoints: List[str], roe_settings: dict) -> List[str]:
             excluded_count += 1
 
     if excluded_count > 0:
-        print(f"[RoE][GraphQL] Excluded {excluded_count} endpoint(s) per Rules of Engagement")
+        print(f"[-][GraphQL] RoE: excluded {excluded_count} out-of-scope endpoint(s)")
 
     return filtered_endpoints

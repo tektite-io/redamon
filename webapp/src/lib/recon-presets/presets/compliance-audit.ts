@@ -147,6 +147,10 @@ Security teams running compliance audits, blue teamers validating hardening base
     nucleiScanAllIps: false,
     nucleiInteractsh: false,
 
+    // --- GraphQL: OFF by default. Compliance audits have defined scope; no crawlers
+    //     enabled (Katana/Hakrawler off) means GraphQL discovery has minimal signal.
+    //     If GraphQL is in scope, enable per-project. ---
+
     // --- CVE Lookup: disabled ---
     cveLookupEnabled: false,
 
@@ -198,5 +202,9 @@ Security teams running compliance audits, blue teamers validating hardening base
     zoomEyeEnabled: false,
     criminalIpEnabled: false,
     uncoverEnabled: false,
+
+    // --- GraphQL: explicit OFF so switching from a GraphQL-enabled preset resets cleanly ---
+    graphqlSecurityEnabled: false,
+    graphqlCopEnabled: false,
   },
 }

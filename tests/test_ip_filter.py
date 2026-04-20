@@ -1,9 +1,9 @@
-"""Tests for recon/ip_filter.py"""
+"""Tests for recon/main_recon_modules/ip_filter.py"""
 import os
 import sys
 import unittest
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'recon'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'recon', 'main_recon_modules'))
 
 from ip_filter import is_non_routable_ip, collect_cdn_ips, filter_ips_for_enrichment
 

@@ -270,6 +270,11 @@ Pentesters running a final comprehensive sweep on a target they have full author
     nucleiScanAllIps: true,
     nucleiInteractsh: true,
 
+    // --- GraphQL Security: max coverage ---
+    graphqlSecurityEnabled: true,
+    graphqlCopEnabled: true,
+    graphqlCopTestIntrospection: true,  // Both scanners for cross-validation
+
     // --- CVE Lookup: max ---
     cveLookupEnabled: true,
     cveLookupMaxCves: 50,

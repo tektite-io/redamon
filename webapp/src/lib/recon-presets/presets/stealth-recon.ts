@@ -51,8 +51,10 @@ Red team operators performing authorized reconnaissance against targets with act
 10. OSINT providers enrich all discovered assets through third-party APIs at reduced query limits
 11. CVE and MITRE enrichment map services to known vulnerabilities offline`,
   parameters: {
-    // Modules: no js_recon (too many downloads)
-    scanModules: ['domain_discovery', 'port_scan', 'http_probe', 'resource_enum'],
+    // Modules: include vuln_scan so the throttled Nuclei config below (critical/high,
+    // 5 rps, 2 concurrent, no DAST/Interactsh) plus CVE lookup and MITRE enrichment
+    // actually execute. No js_recon (too many downloads).
+    scanModules: ['domain_discovery', 'port_scan', 'http_probe', 'resource_enum', 'vuln_scan'],
 
     // Stealth + Tor: core of this preset
     stealthMode: true,
@@ -174,6 +176,13 @@ Red team operators performing authorized reconnaissance against targets with act
     nucleiScanAllIps: false,
     nucleiExcludeTags: ['dos', 'fuzz', 'intrusive', 'sqli', 'rce'],
 
+    // --- GraphQL: we set graphqlSecurityEnabled: false below for clean preset-switch
+    //     state, but note that apply_stealth_overrides (project_settings.py) FORCES
+    //     GRAPHQL_SECURITY_ENABLED = True at runtime whenever stealthMode is on,
+    //     restricted to passive introspection only (no mutations, no proxy testing,
+    //     safe-mode on, rate 2, concurrency 1). DoS graphql-cop probes are also
+    //     force-disabled. So the effective GraphQL behaviour is passive-only. ---
+
     // --- DISABLE security checks ---
     securityCheckEnabled: false,
 
@@ -220,5 +229,9 @@ Red team operators performing authorized reconnaissance against targets with act
 
     uncoverEnabled: true,
     uncoverMaxResults: 200,
+
+    // --- GraphQL: explicit OFF so switching from a GraphQL-enabled preset resets cleanly ---
+    graphqlSecurityEnabled: false,
+    graphqlCopEnabled: false,
   },
 }

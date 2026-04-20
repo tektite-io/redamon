@@ -1,5 +1,5 @@
 """
-Unit tests for OTX (AlienVault) enrichment (recon/otx_enrich.py).
+Unit tests for OTX (AlienVault) enrichment (recon/main_recon_modules/otx_enrich.py).
 
 Mocks requests.get for https://otx.alienvault.com/api/v1/indicators/*.
 Covers:
@@ -23,7 +23,7 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch, call
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(REPO_ROOT / "recon"))
+sys.path.insert(0, str(REPO_ROOT / "recon" / "main_recon_modules"))
 
 from otx_enrich import (
     run_otx_enrichment,

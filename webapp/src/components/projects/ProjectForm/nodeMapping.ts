@@ -22,6 +22,7 @@ export const SECTION_INPUT_MAP: Record<string, string[]> = {
   SecurityChecks:     ['BaseURL', 'IP', 'Subdomain', 'Domain'],
   Uncover:            ['Domain'],
   JsRecon:            ['BaseURL', 'Endpoint'],
+  GraphqlScan:        ['BaseURL', 'Endpoint'],
   Mitre:              ['CVE'],
 }
 
@@ -49,6 +50,7 @@ export const SECTION_NODE_MAP: Record<string, string[]> = {
   SecurityChecks:     ['Vulnerability'],
   Uncover:            ['IP', 'Subdomain', 'Port', 'Endpoint'],
   JsRecon:            ['Secret', 'Endpoint'],
+  GraphqlScan:        ['Vulnerability', 'Endpoint'],
   Mitre:              ['MitreData', 'Capec'],
 }
 
@@ -62,4 +64,5 @@ export const SECTION_ENRICH_MAP: Record<string, string[]> = {
   Nmap:               ['Port', 'Service'],
   Httpx:              ['Subdomain', 'Domain'],
   SecurityChecks:     ['IP'],
+  GraphqlScan:        ['Endpoint'],
 }

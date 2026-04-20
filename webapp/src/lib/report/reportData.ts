@@ -118,6 +118,28 @@ export interface JsReconFindingRecord {
   sourceUrl: string | null
 }
 
+export interface GraphqlFindingRecord {
+  endpoint: string
+  vulnerabilityType: string   // native: 'graphql_introspection_enabled' | 'graphql_sensitive_data_exposure'
+                              // graphql-cop: 'graphql_alias_overloading', 'graphql_batch_query_allowed', etc.
+  severity: string
+  source: 'graphql_scan' | 'graphql_cop' | string
+  title: string
+  description: string | null
+  evidence: string | null     // JSON blob
+  curlVerify: string | null   // graphql-cop cURL reproducer (extracted from evidence JSON)
+}
+
+export interface GraphqlEndpointRecord {
+  url: string
+  introspectionEnabled: boolean
+  schemaExtracted: boolean
+  queriesCount: number
+  mutationsCount: number
+  subscriptionsCount: number
+  schemaHash: string | null
+}
+
 export interface ThreatPulseRecord {
   name: string
   adversary: string | null
@@ -225,6 +247,17 @@ export interface ReportData {
     findings: JsReconFindingRecord[]
   }
 
+  // GraphQL Security Scanner
+  graphqlScan: {
+    totalFindings: number
+    endpointsTested: number
+    introspectionEnabled: number
+    bySeverity: { severity: string; count: number }[]
+    byType: { vulnerabilityType: string; count: number }[]
+    endpoints: GraphqlEndpointRecord[]
+    findings: GraphqlFindingRecord[]
+  }
+
   // OTX Threat Intelligence
   otx: {
     totalPulses: number
@@ -321,6 +354,7 @@ export async function gatherReportData(projectId: string): Promise<ReportData> {
     trufflehogData,
     secretsData,
     jsReconData,
+    graphqlData,
     otxData,
   ] = await Promise.all([
     withSession(s => queryGraphOverview(s, projectId)),
@@ -331,6 +365,7 @@ export async function gatherReportData(projectId: string): Promise<ReportData> {
     withSession(s => queryTrufflehog(s, projectId)),
     withSession(s => querySecrets(s, projectId)),
     withSession(s => queryJsRecon(s, projectId)),
+    withSession(s => queryGraphql(s, projectId)),
     withSession(s => queryOtx(s, projectId)),
   ])
 
@@ -399,6 +434,10 @@ export async function gatherReportData(projectId: string): Promise<ReportData> {
     const jsReconScore = jsReconData.bySeverity
       .filter((d: { severity: string; count: number }) => d.severity === 'critical' || d.severity === 'high')
       .reduce((sum: number, d: { severity: string; count: number }) => sum + d.count, 0) * 40
+    const graphqlScore = graphqlData.bySeverity.reduce((sum: number, d: { severity: string; count: number }) => {
+      const w = d.severity === 'critical' ? 60 : d.severity === 'high' ? 30 : d.severity === 'medium' ? 10 : d.severity === 'low' ? 3 : 1
+      return sum + d.count * w
+    }, 0)
     const otxScore = otxData.totalPulses * 20 + otxData.totalMalware * 50
     const injectableScore = injectableParams * 25
     const expiredCertScore = graphOverview.certificateHealth.expired * 10
@@ -417,7 +456,7 @@ export async function gatherReportData(projectId: string): Promise<ReportData> {
       + chainExploitScore + chainFindingsScore + capecScore
       + secretsScore + sensitiveFilesScore + injectableScore
       + expiredCertScore + missingHeaderScore
-      + trufflehogScore + jsReconScore + otxScore
+      + trufflehogScore + jsReconScore + graphqlScore + otxScore
     const riskScore = Math.min(100, Math.round(15 * Math.log(rawRisk + 1)))
     const riskLabel: 'Critical' | 'High' | 'Medium' | 'Low' | 'Minimal' =
       riskScore >= 80 ? 'Critical' : riskScore >= 60 ? 'High'
@@ -519,6 +558,7 @@ export async function gatherReportData(projectId: string): Promise<ReportData> {
       trufflehog: trufflehogData,
       secrets: secretsData,
       jsRecon: jsReconData,
+      graphqlScan: graphqlData,
       otx: otxData,
       attackChains: attackChainData,
       fireteams: fireteamsBlock,
@@ -1112,6 +1152,96 @@ async function queryJsRecon(session: any, pid: string) {
       evidence: r.get('evidence') as string | null,
       sourceUrl: r.get('sourceUrl') as string | null,
     })),
+  }
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function queryGraphql(session: any, pid: string) {
+  const endpointsRes = await session.run(
+    `MATCH (e:Endpoint {project_id: $pid, is_graphql: true})
+     RETURN e.full_url AS url,
+            coalesce(e.graphql_introspection_enabled, false) AS introspectionEnabled,
+            coalesce(e.graphql_schema_extracted, false) AS schemaExtracted,
+            coalesce(e.graphql_queries_count, 0) AS queriesCount,
+            coalesce(e.graphql_mutations_count, 0) AS mutationsCount,
+            coalesce(e.graphql_subscriptions_count, 0) AS subscriptionsCount,
+            e.graphql_schema_hash AS schemaHash
+     ORDER BY introspectionEnabled DESC, queriesCount DESC
+     LIMIT 50`,
+    { pid }
+  )
+  const bySevRes = await session.run(
+    `MATCH (v:Vulnerability {project_id: $pid}) WHERE v.source IN ['graphql_scan', 'graphql_cop']
+     RETURN v.severity AS severity, count(v) AS count ORDER BY count DESC`,
+    { pid }
+  )
+  const byTypeRes = await session.run(
+    `MATCH (v:Vulnerability {project_id: $pid}) WHERE v.source IN ['graphql_scan', 'graphql_cop']
+     RETURN v.vulnerability_type AS vulnerabilityType, count(v) AS count ORDER BY count DESC`,
+    { pid }
+  )
+  const findingsRes = await session.run(
+    `MATCH (v:Vulnerability {project_id: $pid}) WHERE v.source IN ['graphql_scan', 'graphql_cop']
+     OPTIONAL MATCH (e:Endpoint)-[:HAS_VULNERABILITY]->(v)
+     RETURN coalesce(e.full_url, v.endpoint, '') AS endpoint,
+            v.vulnerability_type AS vulnerabilityType,
+            v.severity AS severity,
+            v.source AS source,
+            coalesce(v.title, v.name) AS title,
+            v.description AS description,
+            v.evidence AS evidence
+     ORDER BY CASE v.severity WHEN 'critical' THEN 0 WHEN 'high' THEN 1 WHEN 'medium' THEN 2 WHEN 'low' THEN 3 ELSE 4 END
+     LIMIT 50`,
+    { pid }
+  )
+
+  const endpoints: GraphqlEndpointRecord[] = endpointsRes.records.map((r: any) => ({
+    url: (r.get('url') as string) || '',
+    introspectionEnabled: !!r.get('introspectionEnabled'),
+    schemaExtracted: !!r.get('schemaExtracted'),
+    queriesCount: toNum(r.get('queriesCount')),
+    mutationsCount: toNum(r.get('mutationsCount')),
+    subscriptionsCount: toNum(r.get('subscriptionsCount')),
+    schemaHash: r.get('schemaHash') as string | null,
+  }))
+  const totalFindings = bySevRes.records.reduce((s: number, r: any) => s + toNum(r.get('count')), 0)
+
+  return {
+    totalFindings,
+    endpointsTested: endpoints.length,
+    introspectionEnabled: endpoints.filter(e => e.introspectionEnabled).length,
+    bySeverity: bySevRes.records.map((r: any) => ({
+      severity: (r.get('severity') as string) || 'unknown',
+      count: toNum(r.get('count')),
+    })),
+    byType: byTypeRes.records.map((r: any) => ({
+      vulnerabilityType: (r.get('vulnerabilityType') as string) || 'unknown',
+      count: toNum(r.get('count')),
+    })),
+    endpoints,
+    findings: findingsRes.records.map((r: any) => {
+      const evidence = r.get('evidence') as string | null
+      // Extract the graphql-cop cURL reproducer from the evidence JSON if present.
+      let curlVerify: string | null = null
+      if (evidence) {
+        try {
+          const parsed = JSON.parse(evidence)
+          if (parsed && typeof parsed.curl_verify === 'string') {
+            curlVerify = parsed.curl_verify
+          }
+        } catch { /* evidence isn't valid JSON; leave curlVerify null */ }
+      }
+      return {
+        endpoint: (r.get('endpoint') as string) || '',
+        vulnerabilityType: (r.get('vulnerabilityType') as string) || 'unknown',
+        severity: (r.get('severity') as string) || 'unknown',
+        source: (r.get('source') as string) || 'graphql_scan',
+        title: (r.get('title') as string) || 'GraphQL Finding',
+        description: r.get('description') as string | null,
+        evidence,
+        curlVerify,
+      }
+    }),
   }
 }
 

@@ -25,9 +25,9 @@ sys.path.insert(0, str(RECON_ROOT))
 # ---------------------------------------------------------------------------
 def test_crtsh_creates_own_session():
     """query_crtsh creates its own session and closes it — no shared state."""
-    from recon.domain_recon import query_crtsh
+    from recon.main_recon_modules.domain_recon import query_crtsh
 
-    with mock.patch("recon.domain_recon.get_tor_session") as mock_session_factory:
+    with mock.patch("recon.main_recon_modules.domain_recon.get_tor_session") as mock_session_factory:
         mock_session = mock.MagicMock()
         mock_resp = mock.MagicMock()
         mock_resp.status_code = 200
@@ -52,9 +52,9 @@ def test_crtsh_creates_own_session():
 
 def test_hackertarget_creates_own_session():
     """query_hackertarget creates its own session and closes it."""
-    from recon.domain_recon import query_hackertarget
+    from recon.main_recon_modules.domain_recon import query_hackertarget
 
-    with mock.patch("recon.domain_recon.get_tor_session") as mock_session_factory:
+    with mock.patch("recon.main_recon_modules.domain_recon.get_tor_session") as mock_session_factory:
         mock_session = mock.MagicMock()
         mock_resp = mock.MagicMock()
         mock_resp.status_code = 200
@@ -76,7 +76,7 @@ def test_hackertarget_creates_own_session():
 # ---------------------------------------------------------------------------
 def test_parallel_crtsh_hackertarget():
     """Run both passive tools concurrently — verify no shared state corruption."""
-    from recon.domain_recon import query_crtsh, query_hackertarget
+    from recon.main_recon_modules.domain_recon import query_crtsh, query_hackertarget
 
     call_log = {"sessions_created": 0}
     lock = threading.Lock()
@@ -92,7 +92,7 @@ def test_parallel_crtsh_hackertarget():
         sess.get.return_value = resp
         return sess
 
-    with mock.patch("recon.domain_recon.get_tor_session", side_effect=fake_session_factory):
+    with mock.patch("recon.main_recon_modules.domain_recon.get_tor_session", side_effect=fake_session_factory):
         with ThreadPoolExecutor(max_workers=2) as executor:
             f1 = executor.submit(query_crtsh, "example.com", False, {})
             f2 = executor.submit(query_hackertarget, "example.com", False, {})
@@ -121,14 +121,14 @@ def test_parallel_crtsh_hackertarget():
 # ---------------------------------------------------------------------------
 def test_discover_subdomains_parallel():
     """Verify all 5 discovery tools are submitted to ThreadPoolExecutor."""
-    from recon.domain_recon import discover_subdomains
+    from recon.main_recon_modules.domain_recon import discover_subdomains
 
-    with mock.patch("recon.domain_recon.query_crtsh", return_value={"a.example.com": {"crt.sh"}}), \
-         mock.patch("recon.domain_recon.query_hackertarget", return_value={"b.example.com": {"hackertarget"}}), \
-         mock.patch("recon.domain_recon.run_subfinder", return_value={"c.example.com"}), \
-         mock.patch("recon.domain_recon.run_amass", return_value=set()), \
-         mock.patch("recon.domain_recon.run_knockpy", return_value={"d.example.com"}), \
-         mock.patch("recon.domain_recon.resolve_all_dns") as mock_dns:
+    with mock.patch("recon.main_recon_modules.domain_recon.query_crtsh", return_value={"a.example.com": {"crt.sh"}}), \
+         mock.patch("recon.main_recon_modules.domain_recon.query_hackertarget", return_value={"b.example.com": {"hackertarget"}}), \
+         mock.patch("recon.main_recon_modules.domain_recon.run_subfinder", return_value={"c.example.com"}), \
+         mock.patch("recon.main_recon_modules.domain_recon.run_amass", return_value=set()), \
+         mock.patch("recon.main_recon_modules.domain_recon.run_knockpy", return_value={"d.example.com"}), \
+         mock.patch("recon.main_recon_modules.domain_recon.resolve_all_dns") as mock_dns:
 
         mock_dns.return_value = {
             "domain": {"records": {}, "ips": {"ipv4": ["1.1.1.1"], "ipv6": []}, "has_records": True},
@@ -158,7 +158,7 @@ def test_discover_subdomains_parallel():
 # ---------------------------------------------------------------------------
 def test_resolve_all_dns_parallel():
     """Verify DNS resolution runs in parallel and collects all results."""
-    from recon.domain_recon import resolve_all_dns
+    from recon.main_recon_modules.domain_recon import resolve_all_dns
 
     call_times = []
 
@@ -173,7 +173,7 @@ def test_resolve_all_dns_parallel():
 
     subdomains = [f"sub{i}.example.com" for i in range(10)]
 
-    with mock.patch("recon.domain_recon.dns_lookup", side_effect=fake_dns_lookup):
+    with mock.patch("recon.main_recon_modules.domain_recon.dns_lookup", side_effect=fake_dns_lookup):
         start = time.monotonic()
         result = resolve_all_dns("example.com", subdomains, max_workers=10)
         elapsed = time.monotonic() - start
@@ -193,7 +193,7 @@ def test_resolve_all_dns_parallel():
 # ---------------------------------------------------------------------------
 def test_shodan_isolated_no_mutation():
     """Verify isolated wrapper doesn't mutate the original combined_result."""
-    from recon.shodan_enrich import run_shodan_enrichment_isolated
+    from recon.main_recon_modules.shodan_enrich import run_shodan_enrichment_isolated
 
     original = {
         "domain": "example.com",
@@ -205,7 +205,7 @@ def test_shodan_isolated_no_mutation():
     }
     original_copy = copy.deepcopy(original)
 
-    with mock.patch("recon.shodan_enrich.run_shodan_enrichment") as mock_enrich:
+    with mock.patch("recon.main_recon_modules.shodan_enrich.run_shodan_enrichment") as mock_enrich:
         def side_effect(snapshot, settings):
             snapshot["shodan"] = {"hosts": [{"ip": "1.2.3.4"}]}
             return snapshot
@@ -228,7 +228,7 @@ def test_shodan_isolated_no_mutation():
 # ---------------------------------------------------------------------------
 def test_port_scan_isolated_no_mutation():
     """Verify isolated wrapper doesn't mutate the original recon_data."""
-    from recon.port_scan import run_port_scan_isolated
+    from recon.main_recon_modules.port_scan import run_port_scan_isolated
 
     original = {
         "domain": "example.com",
@@ -241,7 +241,7 @@ def test_port_scan_isolated_no_mutation():
     }
     original_copy = copy.deepcopy(original)
 
-    with mock.patch("recon.port_scan.run_port_scan") as mock_scan:
+    with mock.patch("recon.main_recon_modules.port_scan.run_port_scan") as mock_scan:
         def side_effect(snapshot, output_file=None, settings=None):
             snapshot["port_scan"] = {"by_host": {}, "summary": {"total_open_ports": 5}}
             return snapshot
@@ -264,9 +264,9 @@ def test_port_scan_isolated_no_mutation():
 # ---------------------------------------------------------------------------
 def test_urlscan_discovery_only():
     """Verify URLScan discovery-only wrapper works with just a domain string."""
-    from recon.urlscan_enrich import run_urlscan_discovery_only
+    from recon.main_recon_modules.urlscan_enrich import run_urlscan_discovery_only
 
-    with mock.patch("recon.urlscan_enrich.run_urlscan_enrichment") as mock_enrich:
+    with mock.patch("recon.main_recon_modules.urlscan_enrich.run_urlscan_enrichment") as mock_enrich:
         def side_effect(fake_combined, settings):
             fake_combined["urlscan"] = {
                 "results_count": 3,
@@ -297,8 +297,8 @@ def test_urlscan_discovery_only():
 # ---------------------------------------------------------------------------
 def test_shodan_portscan_parallel():
     """Verify Shodan and port scan run concurrently (fan-out Group 3)."""
-    from recon.shodan_enrich import run_shodan_enrichment_isolated
-    from recon.port_scan import run_port_scan_isolated
+    from recon.main_recon_modules.shodan_enrich import run_shodan_enrichment_isolated
+    from recon.main_recon_modules.port_scan import run_port_scan_isolated
 
     execution_log = []
     lock = threading.Lock()
@@ -331,8 +331,8 @@ def test_shodan_portscan_parallel():
             execution_log.append(("portscan_end", time.monotonic()))
         return snapshot
 
-    with mock.patch("recon.shodan_enrich.run_shodan_enrichment", side_effect=mock_shodan), \
-         mock.patch("recon.port_scan.run_port_scan", side_effect=mock_portscan):
+    with mock.patch("recon.main_recon_modules.shodan_enrich.run_shodan_enrichment", side_effect=mock_shodan), \
+         mock.patch("recon.main_recon_modules.port_scan.run_port_scan", side_effect=mock_portscan):
 
         start = time.monotonic()
         with ThreadPoolExecutor(max_workers=2) as executor:
@@ -366,7 +366,7 @@ def test_shodan_portscan_parallel():
 # ---------------------------------------------------------------------------
 def test_disabled_tools():
     """Verify disabled tools return empty results without errors."""
-    from recon.domain_recon import query_crtsh, query_hackertarget, run_subfinder, run_amass
+    from recon.main_recon_modules.domain_recon import query_crtsh, query_hackertarget, run_subfinder, run_amass
 
     r1 = query_crtsh("example.com", settings={"CRTSH_ENABLED": False})
     assert r1 == {}
@@ -374,7 +374,7 @@ def test_disabled_tools():
     r2 = query_hackertarget("example.com", settings={"HACKERTARGET_ENABLED": False})
     assert r2 == {}
 
-    with mock.patch("recon.domain_recon.subprocess") as mock_sub:
+    with mock.patch("recon.main_recon_modules.domain_recon.subprocess") as mock_sub:
         r3 = run_subfinder("example.com", settings={"SUBFINDER_ENABLED": False})
         assert r3 == set()
         mock_sub.run.assert_not_called()
@@ -390,10 +390,10 @@ def test_disabled_tools():
 # ---------------------------------------------------------------------------
 def test_legacy_get_passive_subdomains():
     """Verify the legacy wrapper still works for backward compatibility."""
-    from recon.domain_recon import get_passive_subdomains
+    from recon.main_recon_modules.domain_recon import get_passive_subdomains
 
-    with mock.patch("recon.domain_recon.query_crtsh", return_value={"a.example.com": {"crt.sh"}}), \
-         mock.patch("recon.domain_recon.query_hackertarget", return_value={"b.example.com": {"hackertarget"}}):
+    with mock.patch("recon.main_recon_modules.domain_recon.query_crtsh", return_value={"a.example.com": {"crt.sh"}}), \
+         mock.patch("recon.main_recon_modules.domain_recon.query_hackertarget", return_value={"b.example.com": {"hackertarget"}}):
 
         result = get_passive_subdomains("example.com", session=None, settings={})
 
@@ -410,16 +410,16 @@ def test_legacy_get_passive_subdomains():
 # ---------------------------------------------------------------------------
 def test_fanin_merge_dedup():
     """Verify fan-in correctly deduplicates and attributes sources."""
-    from recon.domain_recon import discover_subdomains
+    from recon.main_recon_modules.domain_recon import discover_subdomains
 
-    with mock.patch("recon.domain_recon.query_crtsh",
+    with mock.patch("recon.main_recon_modules.domain_recon.query_crtsh",
                     return_value={"www.example.com": {"crt.sh"}, "shared.example.com": {"crt.sh"}}), \
-         mock.patch("recon.domain_recon.query_hackertarget",
+         mock.patch("recon.main_recon_modules.domain_recon.query_hackertarget",
                     return_value={"shared.example.com": {"hackertarget"}}), \
-         mock.patch("recon.domain_recon.run_subfinder", return_value={"shared.example.com"}), \
-         mock.patch("recon.domain_recon.run_amass", return_value=set()), \
-         mock.patch("recon.domain_recon.run_knockpy", return_value=set()), \
-         mock.patch("recon.domain_recon.resolve_all_dns", return_value={"domain": {}, "subdomains": {}}):
+         mock.patch("recon.main_recon_modules.domain_recon.run_subfinder", return_value={"shared.example.com"}), \
+         mock.patch("recon.main_recon_modules.domain_recon.run_amass", return_value=set()), \
+         mock.patch("recon.main_recon_modules.domain_recon.run_knockpy", return_value=set()), \
+         mock.patch("recon.main_recon_modules.domain_recon.resolve_all_dns", return_value={"domain": {}, "subdomains": {}}):
 
         result = discover_subdomains(
             "example.com", resolve=True, save_output=False,
@@ -441,18 +441,18 @@ def test_fanin_merge_dedup():
 # ---------------------------------------------------------------------------
 def test_external_domains_separation():
     """Verify out-of-scope domains go to external_domains, not subdomains."""
-    from recon.domain_recon import discover_subdomains
+    from recon.main_recon_modules.domain_recon import discover_subdomains
 
-    with mock.patch("recon.domain_recon.query_crtsh",
+    with mock.patch("recon.main_recon_modules.domain_recon.query_crtsh",
                     return_value={
                         "www.example.com": {"crt.sh"},
                         "cdn.cloudfront.net": {"crt.sh"},  # external
                     }), \
-         mock.patch("recon.domain_recon.query_hackertarget", return_value={}), \
-         mock.patch("recon.domain_recon.run_subfinder", return_value=set()), \
-         mock.patch("recon.domain_recon.run_amass", return_value=set()), \
-         mock.patch("recon.domain_recon.run_knockpy", return_value=set()), \
-         mock.patch("recon.domain_recon.resolve_all_dns", return_value={"domain": {}, "subdomains": {}}):
+         mock.patch("recon.main_recon_modules.domain_recon.query_hackertarget", return_value={}), \
+         mock.patch("recon.main_recon_modules.domain_recon.run_subfinder", return_value=set()), \
+         mock.patch("recon.main_recon_modules.domain_recon.run_amass", return_value=set()), \
+         mock.patch("recon.main_recon_modules.domain_recon.run_knockpy", return_value=set()), \
+         mock.patch("recon.main_recon_modules.domain_recon.resolve_all_dns", return_value={"domain": {}, "subdomains": {}}):
 
         result = discover_subdomains(
             "example.com", resolve=True, save_output=False,

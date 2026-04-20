@@ -441,6 +441,7 @@ ${renderGithubSecrets(data)}
 ${renderTrufflehog(data)}
 ${renderSecrets(data)}
 ${renderJsRecon(data)}
+${renderGraphqlScan(data)}
 ${renderOtx(data)}
 ${renderAttackChains(data)}
 ${renderFireteams(data)}
@@ -499,6 +500,9 @@ function renderTOC(data: ReportData): string {
   }
   if (data.jsRecon.totalFindings > 0) {
     dynamicSections.push({ id: 'js-recon', label: 'JavaScript Reconnaissance' })
+  }
+  if (data.graphqlScan.endpointsTested > 0 || data.graphqlScan.totalFindings > 0) {
+    dynamicSections.push({ id: 'graphql-scan', label: 'GraphQL Security' })
   }
   if (data.otx.totalPulses > 0 || data.otx.totalMalware > 0) {
     dynamicSections.push({ id: 'otx', label: 'OTX Threat Intelligence' })
@@ -1189,6 +1193,80 @@ function renderJsRecon(data: ReportData): string {
     <tbody>${findingRows}</tbody>
   </table>
   ${js.findings.length >= 50 ? '<p class="muted">Showing first 50 findings.</p>' : ''}
+</div>`
+}
+
+function renderGraphqlScan(data: ReportData): string {
+  const gql = data.graphqlScan
+  if (gql.endpointsTested === 0 && gql.totalFindings === 0) return ''
+
+  const sevRows = gql.bySeverity.map(s => `
+    <tr><td>${sevBadge(s.severity)}</td><td>${s.count}</td></tr>`).join('')
+
+  const typeRows = gql.byType.map(t => `
+    <tr><td>${esc(t.vulnerabilityType.replace(/_/g, ' '))}</td><td>${t.count}</td></tr>`).join('')
+
+  const endpointRows = gql.endpoints.map(e => `
+    <tr>
+      <td style="font-family:monospace;font-size:11px;max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(e.url)}</td>
+      <td>${e.introspectionEnabled ? '<span style="color:#dc2626;font-weight:600">YES</span>' : 'no'}</td>
+      <td>${e.queriesCount}</td>
+      <td>${e.mutationsCount}</td>
+      <td>${e.subscriptionsCount}</td>
+      <td style="font-family:monospace;font-size:10px;color:#6b7280">${e.schemaHash ? esc(e.schemaHash.substring(0, 16)) + '...' : ''}</td>
+    </tr>`).join('')
+
+  const findingRows = gql.findings.map(f => {
+    const sourceBadge = f.source === 'graphql_cop'
+      ? '<span style="font-size:9px;padding:1px 4px;border-radius:3px;background:rgba(99,102,241,0.15);color:#818cf8;margin-left:4px">cop</span>'
+      : ''
+    const curlBlock = f.curlVerify
+      ? `<details style="margin-top:4px"><summary style="font-size:10px;cursor:pointer;color:#9ca3af">Reproduce (cURL)</summary><pre style="font-family:monospace;font-size:10px;background:#f3f4f6;padding:6px;border-radius:3px;overflow-x:auto;white-space:pre-wrap;word-break:break-all;margin:4px 0 0 0">${esc(f.curlVerify)}</pre></details>`
+      : ''
+    return `
+    <tr>
+      <td>${esc(f.title)}${sourceBadge}${curlBlock}</td>
+      <td>${sevBadge(f.severity)}</td>
+      <td>${esc(f.vulnerabilityType.replace(/_/g, ' '))}</td>
+      <td style="font-family:monospace;font-size:11px;max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(f.endpoint)}</td>
+    </tr>`
+  }).join('')
+
+  return `
+<div class="page-break"></div>
+<div class="section" id="graphql-scan">
+  <h2 class="section-title">GraphQL Security</h2>
+  <p style="margin-bottom:12px">Active GraphQL security scan tested <strong>${gql.endpointsTested}</strong> endpoint(s). <strong>${gql.introspectionEnabled}</strong> had introspection enabled, exposing schema details. ${gql.totalFindings} vulnerability finding(s) produced.</p>
+  ${gql.totalFindings > 0 ? `
+  <div class="two-col">
+    <div>
+      <h3>By Severity</h3>
+      <table class="data-table">
+        <thead><tr><th>Severity</th><th>Count</th></tr></thead>
+        <tbody>${sevRows}</tbody>
+      </table>
+    </div>
+    <div>
+      <h3>By Vulnerability Type</h3>
+      <table class="data-table">
+        <thead><tr><th>Type</th><th>Count</th></tr></thead>
+        <tbody>${typeRows}</tbody>
+      </table>
+    </div>
+  </div>` : ''}
+  ${gql.endpoints.length > 0 ? `
+  <h3>Tested GraphQL Endpoints</h3>
+  <table class="data-table">
+    <thead><tr><th>Endpoint</th><th>Introspection</th><th>Queries</th><th>Mutations</th><th>Subscriptions</th><th>Schema Hash</th></tr></thead>
+    <tbody>${endpointRows}</tbody>
+  </table>` : ''}
+  ${gql.findings.length > 0 ? `
+  <h3>Findings Detail</h3>
+  <table class="data-table">
+    <thead><tr><th>Title</th><th>Severity</th><th>Type</th><th>Endpoint</th></tr></thead>
+    <tbody>${findingRows}</tbody>
+  </table>
+  ${gql.findings.length >= 50 ? '<p class="muted">Showing first 50 findings.</p>' : ''}` : ''}
 </div>`
 }
 

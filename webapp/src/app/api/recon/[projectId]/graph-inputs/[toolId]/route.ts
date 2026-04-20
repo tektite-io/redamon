@@ -558,6 +558,47 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       }
     }
 
+    else if (toolId === 'GraphqlScan') {
+      try {
+        const session = getSession()
+        try {
+          const result = await session.run(
+            `OPTIONAL MATCH (d:Domain {user_id: $uid, project_id: $pid})
+             WITH d
+             OPTIONAL MATCH (b:BaseURL {user_id: $uid, project_id: $pid})
+             WITH d, collect(DISTINCT b.url) AS baseurls
+             OPTIONAL MATCH (e:Endpoint {user_id: $uid, project_id: $pid})
+             WITH d, baseurls, count(DISTINCT e) AS endpointCount,
+                  count(DISTINCT CASE WHEN e.is_graphql = true THEN e END) AS graphqlEndpointCount
+             RETURN d.name AS domain, baseurls, size(baseurls) AS baseurlCount, endpointCount, graphqlEndpointCount`,
+            { uid: project.userId, pid: projectId }
+          )
+          const record = result.records[0]
+          const domain = record?.get('domain') || null
+          const baseurls: string[] = record?.get('baseurls') || []
+          const baseurlCount = record?.get('baseurlCount')?.toNumber?.() ?? record?.get('baseurlCount') ?? 0
+          const endpointCount = record?.get('endpointCount')?.toNumber?.() ?? record?.get('endpointCount') ?? 0
+          const graphqlEndpointCount = record?.get('graphqlEndpointCount')?.toNumber?.() ?? record?.get('graphqlEndpointCount') ?? 0
+
+          if (domain) {
+            return NextResponse.json({
+              domain,
+              existing_subdomains_count: 0,
+              existing_baseurls: baseurls,
+              existing_baseurls_count: baseurlCount,
+              existing_endpoints_count: endpointCount,
+              existing_graphql_endpoints_count: graphqlEndpointCount,
+              source: 'graph',
+            })
+          }
+        } finally {
+          await session.close()
+        }
+      } catch (err) {
+        console.warn('Neo4j query failed for GraphqlScan graph-inputs, falling back to settings:', err)
+      }
+    }
+
     else if (toolId === 'Shodan') {
       try {
         const session = getSession()

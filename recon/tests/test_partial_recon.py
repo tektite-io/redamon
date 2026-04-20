@@ -158,7 +158,7 @@ class TestRunSubdomainDiscovery(unittest.TestCase):
         saved = {}
         modules_to_mock = {
             'recon.project_settings': mock_project_settings,
-            'recon.domain_recon': mock_domain_recon,
+            'recon.main_recon_modules.domain_recon': mock_domain_recon,
             'graph_db': mock_graph_db,
         }
         for name, mod in modules_to_mock.items():
@@ -343,7 +343,7 @@ class TestRunNaabu(unittest.TestCase):
         saved = {}
         modules_to_mock = {
             'recon.project_settings': mock_project_settings,
-            'recon.port_scan': mock_port_scan_mod,
+            'recon.main_recon_modules.port_scan': mock_port_scan_mod,
             'graph_db': mock_graph_db,
         }
         for name, mod in modules_to_mock.items():
@@ -707,7 +707,7 @@ class TestRunNaabuCidrExpansion(unittest.TestCase):
         saved = {}
         modules_to_mock = {
             'recon.project_settings': mock_project_settings,
-            'recon.port_scan': mock_port_scan_mod,
+            'recon.main_recon_modules.port_scan': mock_port_scan_mod,
             'graph_db': mock_graph_db,
         }
         for name, mod in modules_to_mock.items():
@@ -913,7 +913,7 @@ class TestRunNaabuHostnameInputs(unittest.TestCase):
         saved = {}
         modules_to_mock = {
             'recon.project_settings': mock_project_settings,
-            'recon.port_scan': mock_port_scan_mod,
+            'recon.main_recon_modules.port_scan': mock_port_scan_mod,
             'graph_db': mock_graph_db,
         }
         for name, mod in modules_to_mock.items():
@@ -1090,7 +1090,7 @@ class TestRunNaabuStructuredTargets(unittest.TestCase):
         saved = {}
         modules_to_mock = {
             'recon.project_settings': mock_project_settings,
-            'recon.port_scan': mock_port_scan_mod,
+            'recon.main_recon_modules.port_scan': mock_port_scan_mod,
             'graph_db': mock_graph_db,
         }
         for name, mod in modules_to_mock.items():
@@ -1317,7 +1317,7 @@ class TestRunMasscan(unittest.TestCase):
         saved = {}
         modules_to_mock = {
             'recon.project_settings': mock_project_settings,
-            'recon.masscan_scan': mock_masscan_mod,
+            'recon.main_recon_modules.masscan_scan': mock_masscan_mod,
             'graph_db': mock_graph_db,
         }
         for name, mod in modules_to_mock.items():
@@ -1514,7 +1514,7 @@ class TestRunNmap(unittest.TestCase):
         saved = {}
         modules_to_mock = {
             'recon.project_settings': mock_project_settings,
-            'recon.nmap_scan': mock_nmap_mod,
+            'recon.main_recon_modules.nmap_scan': mock_nmap_mod,
             'recon.main': mock_main_mod,
             'graph_db': mock_graph_db,
         }
@@ -1714,7 +1714,7 @@ class TestRunNmapStructuredTargets(unittest.TestCase):
         saved = {}
         modules_to_mock = {
             'recon.project_settings': mock_project_settings,
-            'recon.nmap_scan': mock_nmap_mod,
+            'recon.main_recon_modules.nmap_scan': mock_nmap_mod,
             'recon.main': mock_main_mod,
             'graph_db': mock_graph_db,
         }
@@ -1881,7 +1881,7 @@ class TestRunHttpx(unittest.TestCase):
         saved = {}
         modules_to_mock = {
             'recon.project_settings': mock_project_settings,
-            'recon.http_probe': mock_http_probe_mod,
+            'recon.main_recon_modules.http_probe': mock_http_probe_mod,
             'graph_db': mock_graph_db,
         }
         for name, mod in modules_to_mock.items():
@@ -3197,7 +3197,7 @@ class TestRunJsRecon(unittest.TestCase):
         saved = {}
         modules_to_mock = {
             'recon.project_settings': mock_project_settings,
-            'recon.js_recon': mock_js_recon_module,
+            'recon.main_recon_modules.js_recon': mock_js_recon_module,
             'graph_db': mock_graph_db,
         }
         for name, mod in modules_to_mock.items():
@@ -3411,7 +3411,7 @@ class TestRunShodan(unittest.TestCase):
         saved = {}
         modules_to_mock = {
             'recon.project_settings': mock_project_settings,
-            'recon.shodan_enrich': mock_shodan_module,
+            'recon.main_recon_modules.shodan_enrich': mock_shodan_module,
             'graph_db': mock_graph_db,
         }
         for name, mod in modules_to_mock.items():
@@ -3552,7 +3552,7 @@ class TestRunShodan(unittest.TestCase):
         saved = {}
         modules_to_mock = {
             'recon.project_settings': mock_project_settings,
-            'recon.shodan_enrich': mock_shodan_module,
+            'recon.main_recon_modules.shodan_enrich': mock_shodan_module,
             'graph_db': mock_graph_db,
         }
         for name, mod in modules_to_mock.items():
@@ -3748,13 +3748,13 @@ class TestRunOsintEnrichment(unittest.TestCase):
         modules_to_mock = {
             'recon.project_settings': mock_project_settings,
             'graph_db': mock_graph_db,
-            'recon.otx_enrich': mock_otx_module,
-            'recon.censys_enrich': MagicMock(),
-            'recon.fofa_enrich': MagicMock(),
-            'recon.netlas_enrich': MagicMock(),
-            'recon.virustotal_enrich': MagicMock(),
-            'recon.zoomeye_enrich': MagicMock(),
-            'recon.criminalip_enrich': MagicMock(),
+            'recon.main_recon_modules.otx_enrich': mock_otx_module,
+            'recon.main_recon_modules.censys_enrich': MagicMock(),
+            'recon.main_recon_modules.fofa_enrich': MagicMock(),
+            'recon.main_recon_modules.netlas_enrich': MagicMock(),
+            'recon.main_recon_modules.virustotal_enrich': MagicMock(),
+            'recon.main_recon_modules.zoomeye_enrich': MagicMock(),
+            'recon.main_recon_modules.criminalip_enrich': MagicMock(),
         }
         for name, mod in modules_to_mock.items():
             saved[name] = sys.modules.get(name)
@@ -4129,7 +4129,7 @@ class TestRunUrlscan(unittest.TestCase):
         saved = {}
         modules_to_mock = {
             'recon.project_settings': mock_project_settings,
-            'recon.urlscan_enrich': mock_urlscan_module,
+            'recon.main_recon_modules.urlscan_enrich': mock_urlscan_module,
             'graph_db': mock_graph_db,
         }
         for name, mod in modules_to_mock.items():
@@ -4239,7 +4239,7 @@ class TestRunUrlscan(unittest.TestCase):
         saved = {}
         modules_to_mock = {
             'recon.project_settings': MagicMock(get_settings=mock_settings),
-            'recon.urlscan_enrich': MagicMock(run_urlscan_discovery_only=mock_run_discovery),
+            'recon.main_recon_modules.urlscan_enrich': MagicMock(run_urlscan_discovery_only=mock_run_discovery),
             'graph_db': MagicMock(Neo4jClient=mock_neo4j_cls),
         }
         for name, mod in modules_to_mock.items():
@@ -4313,7 +4313,7 @@ class TestRunUncover(unittest.TestCase):
         saved = {}
         modules_to_mock = {
             'recon.project_settings': mock_project_settings,
-            'recon.uncover_enrich': mock_uncover_module,
+            'recon.main_recon_modules.uncover_enrich': mock_uncover_module,
             'graph_db': mock_graph_db,
         }
         for name, mod in modules_to_mock.items():
@@ -4417,7 +4417,7 @@ class TestRunUncover(unittest.TestCase):
         saved = {}
         modules_to_mock = {
             'recon.project_settings': mock_project_settings,
-            'recon.uncover_enrich': mock_uncover_module,
+            'recon.main_recon_modules.uncover_enrich': mock_uncover_module,
             'graph_db': mock_graph_db,
         }
         for name, mod in modules_to_mock.items():
@@ -4577,7 +4577,7 @@ class TestRunNuclei(unittest.TestCase):
         saved = {}
         modules_to_mock = {
             'recon.project_settings': mock_project_settings,
-            'recon.vuln_scan': mock_vuln_scan_module,
+            'recon.main_recon_modules.vuln_scan': mock_vuln_scan_module,
             'graph_db': mock_graph_db,
         }
         for name, mod in modules_to_mock.items():

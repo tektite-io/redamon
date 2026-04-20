@@ -61,8 +61,10 @@ Red team operators in the pre-engagement phase, OSINT analysts building target p
 8. CVE lookup and MITRE enrichment map found service versions to known vulnerabilities and attack patterns`,
   parameters: {
     // Modules: domain_discovery + port_scan (passive) + resource_enum (GAU/ParamSpider only)
-    // No http_probe (sends requests), no vuln_scan (nuclei), no js_recon (downloads files)
-    scanModules: ['domain_discovery', 'port_scan', 'resource_enum'],
+    //        + vuln_scan (needed for CVE lookup + MITRE enrichment -- Nuclei itself is
+    //          disabled below so nothing active is sent to the target).
+    // No http_probe (sends requests), no js_recon (downloads files).
+    scanModules: ['domain_discovery', 'port_scan', 'resource_enum', 'vuln_scan'],
 
     // Stealth OFF (not needed -- nothing active), Tor OFF
     stealthMode: false,
@@ -191,5 +193,9 @@ Red team operators in the pre-engagement phase, OSINT analysts building target p
 
     uncoverEnabled: true,
     uncoverMaxResults: 1000,
+
+    // --- GraphQL: explicit OFF so switching from a GraphQL-enabled preset resets cleanly ---
+    graphqlSecurityEnabled: false,
+    graphqlCopEnabled: false,
   },
 }

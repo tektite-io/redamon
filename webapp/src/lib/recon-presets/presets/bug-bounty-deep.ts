@@ -212,6 +212,18 @@ Bug bounty hunters who have already triaged a target (perhaps with the Quick Win
     nucleiScanAllIps: false,
     nucleiInteractsh: true,
 
+    // --- GraphQL Security: coverage for deep hunt, but DoS probes OFF.
+    //     This preset's mission ("balanced to avoid IP bans", "moderate concurrency
+    //     to stay under WAF thresholds") is incompatible with graphql-cop's four
+    //     DoS probes (alias overloading / array batching / directive overloading /
+    //     circular introspection) which default-on and frequently trigger WAF bans.
+    graphqlSecurityEnabled: true,
+    graphqlCopEnabled: true,
+    graphqlCopTestAliasOverloading: false,
+    graphqlCopTestBatchQuery: false,
+    graphqlCopTestDirectiveOverloading: false,
+    graphqlCopTestCircularIntrospection: false,
+
     // --- CVE Lookup + MITRE: enabled ---
     cveLookupEnabled: true,
     cveLookupMaxCves: 20,

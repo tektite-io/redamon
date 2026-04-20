@@ -512,10 +512,6 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     # GraphQL Security Testing
     'GRAPHQL_SECURITY_ENABLED': False,
     'GRAPHQL_INTROSPECTION_TEST': True,
-    'GRAPHQL_MUTATION_TESTING': True,
-    'GRAPHQL_PROXY_TESTING': True,
-    'GRAPHQL_SAFE_MODE': True,
-    'GRAPHQL_MAX_MUTATIONS_TEST': 50,
     'GRAPHQL_TIMEOUT': 30,
     'GRAPHQL_RATE_LIMIT': 10,
     'GRAPHQL_CONCURRENCY': 5,
@@ -527,6 +523,26 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     'GRAPHQL_RETRY_COUNT': 3,
     'GRAPHQL_RETRY_BACKOFF': 2.0,
     'GRAPHQL_VERIFY_SSL': True,  # Enable SSL verification by default
+
+    # GraphQL Cop (external Docker-based misconfig scanner -- Phase 2 §17)
+    'GRAPHQL_COP_ENABLED': False,                   # Master toggle (opt-in)
+    'GRAPHQL_COP_DOCKER_IMAGE': 'dolevf/graphql-cop:1.14',
+    'GRAPHQL_COP_TIMEOUT': 120,                     # Seconds per endpoint
+    'GRAPHQL_COP_FORCE_SCAN': False,                # -f flag: scan even if endpoint isn't GraphQL-like
+    'GRAPHQL_COP_DEBUG': False,                     # -d flag: X-GraphQL-Cop-Test header per request
+    # Per-test toggles (True = run, False = exclude via -e)
+    'GRAPHQL_COP_TEST_FIELD_SUGGESTIONS': True,
+    'GRAPHQL_COP_TEST_INTROSPECTION': False,        # Off by default -- PR's native check covers this
+    'GRAPHQL_COP_TEST_GRAPHIQL': True,
+    'GRAPHQL_COP_TEST_GET_METHOD': True,
+    'GRAPHQL_COP_TEST_ALIAS_OVERLOADING': True,     # DoS (disabled in stealth mode)
+    'GRAPHQL_COP_TEST_BATCH_QUERY': True,           # DoS
+    'GRAPHQL_COP_TEST_TRACE_MODE': True,
+    'GRAPHQL_COP_TEST_DIRECTIVE_OVERLOADING': True, # DoS
+    'GRAPHQL_COP_TEST_CIRCULAR_INTROSPECTION': True,# DoS
+    'GRAPHQL_COP_TEST_GET_MUTATION': True,
+    'GRAPHQL_COP_TEST_POST_CSRF': True,
+    'GRAPHQL_COP_TEST_UNHANDLED_ERROR': True,
 }
 
 
@@ -1102,10 +1118,6 @@ def fetch_project_settings(project_id: str, webapp_url: str) -> dict[str, Any]:
     # GraphQL Security Testing
     settings['GRAPHQL_SECURITY_ENABLED'] = project.get('graphqlSecurityEnabled', DEFAULT_SETTINGS['GRAPHQL_SECURITY_ENABLED'])
     settings['GRAPHQL_INTROSPECTION_TEST'] = project.get('graphqlIntrospectionTest', DEFAULT_SETTINGS['GRAPHQL_INTROSPECTION_TEST'])
-    settings['GRAPHQL_MUTATION_TESTING'] = project.get('graphqlMutationTesting', DEFAULT_SETTINGS['GRAPHQL_MUTATION_TESTING'])
-    settings['GRAPHQL_PROXY_TESTING'] = project.get('graphqlProxyTesting', DEFAULT_SETTINGS['GRAPHQL_PROXY_TESTING'])
-    settings['GRAPHQL_SAFE_MODE'] = project.get('graphqlSafeMode', DEFAULT_SETTINGS['GRAPHQL_SAFE_MODE'])
-    settings['GRAPHQL_MAX_MUTATIONS_TEST'] = project.get('graphqlMaxMutationsTest', DEFAULT_SETTINGS['GRAPHQL_MAX_MUTATIONS_TEST'])
     settings['GRAPHQL_TIMEOUT'] = project.get('graphqlTimeout', DEFAULT_SETTINGS['GRAPHQL_TIMEOUT'])
     settings['GRAPHQL_RATE_LIMIT'] = project.get('graphqlRateLimit', DEFAULT_SETTINGS['GRAPHQL_RATE_LIMIT'])
     settings['GRAPHQL_CONCURRENCY'] = project.get('graphqlConcurrency', DEFAULT_SETTINGS['GRAPHQL_CONCURRENCY'])
@@ -1117,6 +1129,25 @@ def fetch_project_settings(project_id: str, webapp_url: str) -> dict[str, Any]:
     settings['GRAPHQL_RETRY_COUNT'] = project.get('graphqlRetryCount', DEFAULT_SETTINGS['GRAPHQL_RETRY_COUNT'])
     settings['GRAPHQL_RETRY_BACKOFF'] = project.get('graphqlRetryBackoff', DEFAULT_SETTINGS['GRAPHQL_RETRY_BACKOFF'])
     settings['GRAPHQL_VERIFY_SSL'] = project.get('graphqlVerifySsl', DEFAULT_SETTINGS['GRAPHQL_VERIFY_SSL'])
+
+    # GraphQL Cop (external scanner) - Phase 2 §17
+    settings['GRAPHQL_COP_ENABLED'] = project.get('graphqlCopEnabled', DEFAULT_SETTINGS['GRAPHQL_COP_ENABLED'])
+    settings['GRAPHQL_COP_DOCKER_IMAGE'] = project.get('graphqlCopDockerImage', DEFAULT_SETTINGS['GRAPHQL_COP_DOCKER_IMAGE'])
+    settings['GRAPHQL_COP_TIMEOUT'] = project.get('graphqlCopTimeout', DEFAULT_SETTINGS['GRAPHQL_COP_TIMEOUT'])
+    settings['GRAPHQL_COP_FORCE_SCAN'] = project.get('graphqlCopForceScan', DEFAULT_SETTINGS['GRAPHQL_COP_FORCE_SCAN'])
+    settings['GRAPHQL_COP_DEBUG'] = project.get('graphqlCopDebug', DEFAULT_SETTINGS['GRAPHQL_COP_DEBUG'])
+    settings['GRAPHQL_COP_TEST_FIELD_SUGGESTIONS'] = project.get('graphqlCopTestFieldSuggestions', DEFAULT_SETTINGS['GRAPHQL_COP_TEST_FIELD_SUGGESTIONS'])
+    settings['GRAPHQL_COP_TEST_INTROSPECTION'] = project.get('graphqlCopTestIntrospection', DEFAULT_SETTINGS['GRAPHQL_COP_TEST_INTROSPECTION'])
+    settings['GRAPHQL_COP_TEST_GRAPHIQL'] = project.get('graphqlCopTestGraphiql', DEFAULT_SETTINGS['GRAPHQL_COP_TEST_GRAPHIQL'])
+    settings['GRAPHQL_COP_TEST_GET_METHOD'] = project.get('graphqlCopTestGetMethod', DEFAULT_SETTINGS['GRAPHQL_COP_TEST_GET_METHOD'])
+    settings['GRAPHQL_COP_TEST_ALIAS_OVERLOADING'] = project.get('graphqlCopTestAliasOverloading', DEFAULT_SETTINGS['GRAPHQL_COP_TEST_ALIAS_OVERLOADING'])
+    settings['GRAPHQL_COP_TEST_BATCH_QUERY'] = project.get('graphqlCopTestBatchQuery', DEFAULT_SETTINGS['GRAPHQL_COP_TEST_BATCH_QUERY'])
+    settings['GRAPHQL_COP_TEST_TRACE_MODE'] = project.get('graphqlCopTestTraceMode', DEFAULT_SETTINGS['GRAPHQL_COP_TEST_TRACE_MODE'])
+    settings['GRAPHQL_COP_TEST_DIRECTIVE_OVERLOADING'] = project.get('graphqlCopTestDirectiveOverloading', DEFAULT_SETTINGS['GRAPHQL_COP_TEST_DIRECTIVE_OVERLOADING'])
+    settings['GRAPHQL_COP_TEST_CIRCULAR_INTROSPECTION'] = project.get('graphqlCopTestCircularIntrospection', DEFAULT_SETTINGS['GRAPHQL_COP_TEST_CIRCULAR_INTROSPECTION'])
+    settings['GRAPHQL_COP_TEST_GET_MUTATION'] = project.get('graphqlCopTestGetMutation', DEFAULT_SETTINGS['GRAPHQL_COP_TEST_GET_MUTATION'])
+    settings['GRAPHQL_COP_TEST_POST_CSRF'] = project.get('graphqlCopTestPostCsrf', DEFAULT_SETTINGS['GRAPHQL_COP_TEST_POST_CSRF'])
+    settings['GRAPHQL_COP_TEST_UNHANDLED_ERROR'] = project.get('graphqlCopTestUnhandledError', DEFAULT_SETTINGS['GRAPHQL_COP_TEST_UNHANDLED_ERROR'])
 
     # RoE: cap all rate limits to the global max if set
     roe_max_rps = settings['ROE_GLOBAL_MAX_RPS']
@@ -1353,15 +1384,20 @@ def apply_stealth_overrides(settings: dict[str, Any]) -> dict[str, Any]:
     # --- GraphQL Security: minimal introspection only ---
     settings['GRAPHQL_SECURITY_ENABLED'] = True  # Can still do passive introspection
     settings['GRAPHQL_INTROSPECTION_TEST'] = True
-    settings['GRAPHQL_MUTATION_TESTING'] = False  # Mutations are active/noisy
-    settings['GRAPHQL_PROXY_TESTING'] = False     # Proxy testing is active/noisy
-    settings['GRAPHQL_SAFE_MODE'] = True          # Extra safety
     settings['GRAPHQL_RATE_LIMIT'] = 2            # Very low rate
     settings['GRAPHQL_CONCURRENCY'] = 1           # Sequential only
     settings['GRAPHQL_TIMEOUT'] = 60              # Longer timeout for slow responses
 
+    # --- GraphQL Cop: disable DoS probes in stealth mode ---
+    # (Info-leak + CSRF checks still run -- they're low-traffic.)
+    settings['GRAPHQL_COP_TEST_ALIAS_OVERLOADING'] = False
+    settings['GRAPHQL_COP_TEST_BATCH_QUERY'] = False
+    settings['GRAPHQL_COP_TEST_DIRECTIVE_OVERLOADING'] = False
+    settings['GRAPHQL_COP_TEST_CIRCULAR_INTROSPECTION'] = False
+
     logger.info("Stealth overrides applied: Naabu=passive, Masscan=OFF, httpx=low-rate, Katana=minimal, "
                 "Nuclei=no-DAST, Kiterunner=OFF, BannerGrab=OFF, BruteForce=OFF, "
-                "ActiveSecurityChecks=OFF, JsRecon=reduced, GraphQL=introspection-only")
+                "ActiveSecurityChecks=OFF, JsRecon=reduced, GraphQL=introspection-only, "
+                "GraphQLCop=no-DoS")
 
     return settings

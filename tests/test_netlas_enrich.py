@@ -1,5 +1,5 @@
 """
-Unit tests for Netlas OSINT enrichment (recon/netlas_enrich.py).
+Unit tests for Netlas OSINT enrichment (recon/main_recon_modules/netlas_enrich.py).
 
 Mocks requests.get for https://app.netlas.io/api/responses/.
 """
@@ -11,7 +11,7 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(REPO_ROOT / "recon"))
+sys.path.insert(0, str(REPO_ROOT / "recon" / "main_recon_modules"))
 
 from netlas_enrich import (
     _netlas_item_to_result,

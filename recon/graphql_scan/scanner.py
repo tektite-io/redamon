@@ -13,6 +13,10 @@ import threading
 from typing import Dict, List
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
+import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
+
 from .discovery import discover_graphql_endpoints, filter_by_roe
 from .introspection import (
     test_introspection, extract_operations, calculate_schema_hash,
@@ -20,6 +24,29 @@ from .introspection import (
 )
 from .normalizers import normalize_introspection_finding, aggregate_findings
 from .auth import build_auth_headers
+
+
+def _build_retry_session(retry_count: int, backoff: float) -> requests.Session:
+    """Build a requests.Session with retry/backoff on transient HTTP failures.
+
+    Targets 429 (rate-limit) and 5xx explicitly — Cloudflare-fronted targets
+    frequently 429 burst probes and a single retry with backoff recovers
+    most of them. Network-level errors (connection reset, DNS fail) also retry.
+    """
+    retry_count = max(0, min(10, int(retry_count)))  # clamp 0-10
+    backoff = max(0.0, min(10.0, float(backoff)))    # clamp 0-10 seconds
+    retry = Retry(
+        total=retry_count,
+        backoff_factor=backoff,
+        status_forcelist=[429, 500, 502, 503, 504],
+        allowed_methods=frozenset(["GET", "POST"]),
+        raise_on_status=False,
+    )
+    adapter = HTTPAdapter(max_retries=retry)
+    session = requests.Session()
+    session.mount("http://", adapter)
+    session.mount("https://", adapter)
+    return session
 
 
 def run_graphql_scan(combined_result: dict, settings: dict) -> dict:
@@ -107,12 +134,20 @@ def run_graphql_scan(combined_result: dict, settings: dict) -> dict:
     timeout = max(1, min(600, settings.get('GRAPHQL_TIMEOUT', 30)))  # 1-600 seconds
     rate_limit = max(0, min(100, settings.get('GRAPHQL_RATE_LIMIT', 10)))  # 0-100 requests per second
     concurrency = max(1, min(20, min(settings.get('GRAPHQL_CONCURRENCY', 5), len(in_scope_endpoints))))  # 1-20 threads
+    retry_count = settings.get('GRAPHQL_RETRY_COUNT', 3)
+    retry_backoff = settings.get('GRAPHQL_RETRY_BACKOFF', 2.0)
+    depth_limit = settings.get('GRAPHQL_DEPTH_LIMIT', 3)
+
+    # Shared retry-enabled session — thread-safe, reused across all endpoint probes.
+    http_session = _build_retry_session(retry_count, retry_backoff)
 
     # Rate limiting delay
     delay = 1.0 / rate_limit if rate_limit > 0 else 0
 
     # Log configuration
-    print(f"[*][GraphQL] Configuration: timeout={timeout}s, rate_limit={rate_limit}/s, concurrency={concurrency}")
+    print(f"[*][GraphQL] Configuration: timeout={timeout}s, rate_limit={rate_limit}/s, "
+          f"concurrency={concurrency}, retries={retry_count}@backoff={retry_backoff}s, "
+          f"introspection_depth={depth_limit}")
 
     # Test endpoints with concurrency control
     if concurrency > 1 and len(in_scope_endpoints) > 1:
@@ -134,7 +169,9 @@ def run_graphql_scan(combined_result: dict, settings: dict) -> dict:
                     auth_headers,
                     timeout,
                     settings,
-                    introspection_cache
+                    introspection_cache,
+                    http_session,
+                    depth_limit,
                 )
                 futures[future] = endpoint
                 last_submit_time = time.time()
@@ -159,7 +196,7 @@ def run_graphql_scan(combined_result: dict, settings: dict) -> dict:
         # Sequential testing
         for endpoint in in_scope_endpoints:
             try:
-                result = test_single_endpoint(endpoint, auth_headers, timeout, settings, introspection_cache)
+                result = test_single_endpoint(endpoint, auth_headers, timeout, settings, introspection_cache, http_session, depth_limit)
                 if result:
                     graphql_results['endpoints'][endpoint] = result['endpoint_data']
                     graphql_results['vulnerabilities'].extend(result['vulnerabilities'])
@@ -226,7 +263,9 @@ def run_graphql_scan_isolated(combined_result: dict, settings: dict) -> dict:
 
 def test_single_endpoint(endpoint: str, auth_headers: dict,
                         timeout: int, settings: dict,
-                        introspection_cache: dict = None) -> dict:
+                        introspection_cache: dict = None,
+                        http_session: 'requests.Session' = None,
+                        depth_limit: int = 3) -> dict:
     """
     Test a single GraphQL endpoint.
 
@@ -235,6 +274,10 @@ def test_single_endpoint(endpoint: str, auth_headers: dict,
         auth_headers: Authentication headers
         timeout: Request timeout
         settings: Project settings
+        introspection_cache: Shared cache (thread-safe) across endpoints
+        http_session: Retry-enabled session (built in run_graphql_scan).
+            Falls through to bare requests.post when None.
+        depth_limit: TypeRef fragment recursion depth for full introspection.
 
     Returns:
         Dict with endpoint data and vulnerabilities
@@ -266,7 +309,9 @@ def test_single_endpoint(endpoint: str, auth_headers: dict,
         else:
             is_enabled, schema_data, error = test_introspection(
                 endpoint, auth_headers, timeout,
-                verify_ssl=settings.get('GRAPHQL_VERIFY_SSL', True)
+                verify_ssl=settings.get('GRAPHQL_VERIFY_SSL', True),
+                session=http_session,
+                depth_limit=depth_limit,
             )
 
             # Cache the result if cache is provided
@@ -312,5 +357,27 @@ def test_single_endpoint(endpoint: str, auth_headers: dict,
 
                 # Store operations list for future phases
                 result['endpoint_data']['operations'] = operations
+
+    # Phase 2: graphql-cop external misconfig scanner (opt-in, Docker-in-Docker)
+    if settings.get('GRAPHQL_COP_ENABLED', False):
+        try:
+            from recon.graphql_scan.misconfig import run_graphql_cop, derive_endpoint_flags
+            cop_output = run_graphql_cop(endpoint, auth_headers, settings)
+        except Exception as e:
+            print(f"[!][GraphQL-Cop] Unexpected error running graphql-cop on {endpoint}: {e}")
+            cop_output = None
+
+        if cop_output is not None:
+            cop_findings = cop_output.get('findings') or []
+            cop_raw = cop_output.get('raw') or []
+            # Use RAW output (includes result=False rows) to set Endpoint capability
+            # flags -- captures negative signals like "GraphiQL not exposed" explicitly.
+            endpoint_flags = derive_endpoint_flags(cop_raw)
+            result['endpoint_data'].update(endpoint_flags)
+            result['endpoint_data']['graphql_cop_ran'] = True
+            result['vulnerabilities'].extend(cop_findings)
+            if cop_findings:
+                high = sum(1 for f in cop_findings if f.get('severity') in ('critical', 'high'))
+                print(f"[+][GraphQL-Cop] {endpoint}: {len(cop_findings)} findings ({high} high/critical)")
 
     return result

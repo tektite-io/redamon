@@ -42,8 +42,9 @@ Pentesters and security engineers testing REST APIs, GraphQL endpoints, or micro
 7. jsluice extracts API URLs and secrets from JavaScript files
 8. Nuclei runs API-targeted templates in DAST mode with OOB detection`,
   parameters: {
-    // Modules: domain discovery + http probe + resource enum + vuln scan
-    scanModules: ['domain_discovery', 'http_probe', 'resource_enum', 'vuln_scan'],
+    // Modules: 5 phases. port_scan added to discover non-standard API ports
+    // (4000=Apollo/graphql-yoga, 3000=Node dev, 8080=Spring Boot, 5000=Flask/Strawberry)
+    scanModules: ['domain_discovery', 'port_scan', 'http_probe', 'resource_enum', 'vuln_scan'],
 
     stealthMode: false,
     useTorForRecon: false,
@@ -63,8 +64,20 @@ Pentesters and security engineers testing REST APIs, GraphQL endpoints, or micro
     whoisEnabled: true,
     dnsEnabled: true,
 
-    // --- DISABLE port scanning ---
-    naabuEnabled: false,
+    // --- Naabu: scoped to common API ports (Apollo=4000, Hasura=8080, Node=3000,
+    //     Flask=5000, Spring=8080, alt-HTTPS=8443). ~50 ports, <30s per host.
+    //     Without this, httpx only probes 80/443 and misses ~30-40% of real API deployments. ---
+    naabuEnabled: true,
+    naabuScanType: 's',
+    naabuRateLimit: 500,
+    naabuThreads: 25,
+    naabuTimeout: 5000,
+    naabuRetries: 1,
+    naabuCustomPorts: '80,443,3000-3005,4000-4005,5000-5013,8000-8010,8080-8090,8443,9000-9010',
+    naabuTopPorts: '',
+    naabuSkipHostDiscovery: true,
+    naabuVerifyPorts: true,
+    // Masscan & Nmap stay off (overkill for API scope)
     masscanEnabled: false,
     nmapEnabled: false,
 
@@ -161,9 +174,10 @@ Pentesters and security engineers testing REST APIs, GraphQL endpoints, or micro
     arjunChunkSize: 500,
     arjunPassive: false,
 
-    // --- Nuclei: DAST + Interactsh for API vulns ---
+    // --- Nuclei: DAST + Interactsh, API-focused tags ---
     nucleiEnabled: true,
     nucleiSeverity: ['critical', 'high', 'medium', 'low'],
+    nucleiTags: ['api', 'swagger', 'openapi', 'graphql', 'apollo', 'hasura', 'csrf', 'injection', 'ssrf'],
     nucleiRateLimit: 100,
     nucleiBulkSize: 25,
     nucleiConcurrency: 25,
@@ -177,6 +191,15 @@ Pentesters and security engineers testing REST APIs, GraphQL endpoints, or micro
     nucleiMaxRedirects: 10,
     nucleiScanAllIps: false,
     nucleiInteractsh: true,
+
+    // --- GraphQL Security Scanner: API preset is the primary target ---
+    graphqlSecurityEnabled: true,
+    graphqlIntrospectionTest: true,
+    graphqlConcurrency: 5,
+    graphqlRateLimit: 10,
+
+    // --- graphql-cop: full 12-check coverage for API pentests ---
+    graphqlCopEnabled: true,
 
     // --- DISABLE CVE lookup & MITRE ---
     cveLookupEnabled: false,

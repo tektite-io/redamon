@@ -52,6 +52,7 @@ import { CypherFixSettingsSection } from './sections/CypherFixSettingsSection'
 import { RoeSection } from './sections/RoeSection'
 import { OsintEnrichmentSection } from './sections/OsintEnrichmentSection'
 import { JsReconSection } from './sections/JsReconSection'
+import { GraphqlScanSection } from './sections/GraphqlScanSection'
 import { PartialReconModal } from './WorkflowView/PartialReconModal'
 import { ReconPresetModal } from './ReconPresetModal'
 import { SavePresetModal } from './SavePresetModal'
@@ -561,26 +562,24 @@ export function ProjectForm({
               Export
             </button>
           )}
-          {!(mode === 'edit' && viewMode === 'workflow' && RECON_TAB_IDS.has(activeTab)) && (
-            <button
-              type="submit"
-              className="primaryButton"
-              disabled={!canSubmit}
-              title={mode === 'create' ? 'Create the project with the current settings and start working' : 'Save all changes to the project settings'}
-            >
-              {isLoadingDefaults ? (
-                <>
-                  <Loader2 size={14} className={styles.spinner} />
-                  Loading...
-                </>
-              ) : (
-                <>
-                  <Save size={14} />
-                  {isSubmitting ? 'Saving...' : mode === 'edit' ? 'Update Settings' : 'Save Project'}
-                </>
-              )}
-            </button>
-          )}
+          <button
+            type="submit"
+            className="primaryButton"
+            disabled={!canSubmit}
+            title={mode === 'create' ? 'Create the project with the current settings and start working' : 'Save all changes to the project settings'}
+          >
+            {isLoadingDefaults ? (
+              <>
+                <Loader2 size={14} className={styles.spinner} />
+                Loading...
+              </>
+            ) : (
+              <>
+                <Save size={14} />
+                {isSubmitting ? 'Saving...' : mode === 'edit' ? 'Update Settings' : 'Save Project'}
+              </>
+            )}
+          </button>
         </div>
       </div>
 
@@ -753,7 +752,10 @@ export function ProjectForm({
         )}
 
         {activeTab === 'vuln' && viewMode === 'tabs' && (
-          <NucleiSection data={formData} updateField={updateField} onRun={mode === 'edit' && projectId ? () => setPartialReconToolId('Nuclei') : undefined} />
+          <>
+            <NucleiSection data={formData} updateField={updateField} onRun={mode === 'edit' && projectId ? () => setPartialReconToolId('Nuclei') : undefined} />
+            <GraphqlScanSection data={formData} updateField={updateField} projectId={projectId} mode={mode} onRun={mode === 'edit' && projectId ? () => setPartialReconToolId('GraphqlScan') : undefined} />
+          </>
         )}
 
         {activeTab === 'cve' && viewMode === 'tabs' && (

@@ -162,6 +162,9 @@ Bug bounty hunters triaging a new target. You want to know if there are quick wi
     nucleiScanAllIps: false,
     nucleiInteractsh: true,
 
+    // --- GraphQL: OFF by default. "Quick" preset skips niche scans that add
+    //     30s-2min per BaseURL. Users can enable per-project if the target is GraphQL. ---
+
     // --- DISABLE CVE lookup and MITRE (Nuclei finds CVEs directly) ---
     cveLookupEnabled: false,
     mitreEnabled: false,
@@ -211,5 +214,9 @@ Bug bounty hunters triaging a new target. You want to know if there are quick wi
     zoomEyeEnabled: false,
     criminalIpEnabled: false,
     uncoverEnabled: false,
+
+    // --- GraphQL: explicit OFF so switching from a GraphQL-enabled preset resets cleanly ---
+    graphqlSecurityEnabled: false,
+    graphqlCopEnabled: false,
   },
 }

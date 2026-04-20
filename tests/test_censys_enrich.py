@@ -1,5 +1,5 @@
 """
-Unit tests for Censys OSINT enrichment (recon/censys_enrich.py).
+Unit tests for Censys OSINT enrichment (recon/main_recon_modules/censys_enrich.py).
 
 Mocks requests.get for the Censys Platform API v3.
 Censys uses Bearer-token auth (Personal Access Token + Organization ID).
@@ -12,7 +12,7 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(REPO_ROOT / "recon"))
+sys.path.insert(0, str(REPO_ROOT / "recon" / "main_recon_modules"))
 
 from censys_enrich import run_censys_enrichment, run_censys_enrichment_isolated
 

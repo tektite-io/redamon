@@ -192,5 +192,9 @@ Bug bounty hunters and red teamers who want to maximize credential and secret di
 
     // OSINT: all disabled
     osintEnrichmentEnabled: false,
+
+    // --- GraphQL: explicit OFF so switching from a GraphQL-enabled preset resets cleanly ---
+    graphqlSecurityEnabled: false,
+    graphqlCopEnabled: false,
   },
 }

@@ -11,76 +11,86 @@ import requests
 from requests.exceptions import RequestException, Timeout
 
 
-# Standard introspection query
-INTROSPECTION_QUERY = """
-query IntrospectionQuery {
-  __schema {
-    queryType { name }
-    mutationType { name }
-    subscriptionType { name }
-    types {
+def _build_type_ref_fragment(depth: int) -> str:
+    """Render the recursive TypeRef fragment with N levels of ofType nesting.
+
+    GraphQL type references are singly-linked chains (e.g. NON_NULL → LIST → NON_NULL → NAMED).
+    Fixed 3-level fragments truncate info on deeply-wrapped types. GRAPHQL_DEPTH_LIMIT
+    lets users match their schema's actual wrapping depth.
+    """
+    depth = max(1, min(20, depth))  # clamp 1-20 to avoid server-side query rejection
+    indent = "    "
+    parts = ["kind", "name"]
+    tail_close = ""
+    for _ in range(depth):
+        parts.append("ofType {")
+        parts.append(indent + "kind")
+        parts.append(indent + "name")
+        tail_close += "}\n"
+    fragment_body = "\n  ".join(parts)
+    return "fragment TypeRef on __Type {\n  " + fragment_body + "\n" + tail_close.strip() + "\n}"
+
+
+def build_introspection_query(depth_limit: int = 3) -> str:
+    """Compose the full introspection query with configurable TypeRef depth."""
+    return f"""
+query IntrospectionQuery {{
+  __schema {{
+    queryType {{ name }}
+    mutationType {{ name }}
+    subscriptionType {{ name }}
+    types {{
       ...FullType
-    }
-  }
-}
+    }}
+  }}
+}}
 
-fragment FullType on __Type {
+fragment FullType on __Type {{
   kind
   name
   description
-  fields(includeDeprecated: true) {
+  fields(includeDeprecated: true) {{
     name
     description
-    args {
+    args {{
       ...InputValue
-    }
-    type {
+    }}
+    type {{
       ...TypeRef
-    }
+    }}
     isDeprecated
     deprecationReason
-  }
-  inputFields {
+  }}
+  inputFields {{
     ...InputValue
-  }
-  interfaces {
+  }}
+  interfaces {{
     ...TypeRef
-  }
-  enumValues(includeDeprecated: true) {
+  }}
+  enumValues(includeDeprecated: true) {{
     name
     description
     isDeprecated
     deprecationReason
-  }
-  possibleTypes {
+  }}
+  possibleTypes {{
     ...TypeRef
-  }
-}
+  }}
+}}
 
-fragment InputValue on __InputValue {
+fragment InputValue on __InputValue {{
   name
   description
-  type { ...TypeRef }
+  type {{ ...TypeRef }}
   defaultValue
-}
+}}
 
-fragment TypeRef on __Type {
-  kind
-  name
-  ofType {
-    kind
-    name
-    ofType {
-      kind
-      name
-      ofType {
-        kind
-        name
-      }
-    }
-  }
-}
+{_build_type_ref_fragment(depth_limit)}
 """
+
+
+# Default depth=3 query (matches historical behavior when no depth passed)
+INTROSPECTION_QUERY = build_introspection_query(3)
 
 # Simpler introspection query for testing
 SIMPLE_INTROSPECTION_QUERY = """
@@ -94,7 +104,9 @@ SIMPLE_INTROSPECTION_QUERY = """
 
 
 def test_introspection(endpoint: str, headers: Dict[str, str] = None,
-                      timeout: int = 30, verify_ssl: bool = True) -> Tuple[bool, Optional[dict], Optional[str]]:
+                      timeout: int = 30, verify_ssl: bool = True,
+                      session: Optional[requests.Session] = None,
+                      depth_limit: int = 3) -> Tuple[bool, Optional[dict], Optional[str]]:
     """
     Test if GraphQL introspection is enabled at the endpoint.
 
@@ -103,6 +115,9 @@ def test_introspection(endpoint: str, headers: Dict[str, str] = None,
         headers: Optional headers including authentication
         timeout: Request timeout in seconds
         verify_ssl: Whether to verify SSL certificates
+        session: Optional pre-built requests.Session with retry adapter.
+            Falls back to bare requests.post when None (back-compat for tests).
+        depth_limit: TypeRef fragment depth for the full introspection query.
 
     Returns:
         Tuple of (is_enabled, schema_data, error_message)
@@ -114,6 +129,9 @@ def test_introspection(endpoint: str, headers: Dict[str, str] = None,
     if 'content-type' not in headers and 'Content-Type' not in headers:
         headers['Content-Type'] = 'application/json'
 
+    # Route through the retry-enabled session when provided.
+    _post = session.post if session is not None else requests.post
+
     # Try simple introspection first
     print(f"[*][GraphQL] Testing introspection at: {endpoint}")
 
@@ -123,7 +141,7 @@ def test_introspection(endpoint: str, headers: Dict[str, str] = None,
             "query": "{ __typename }"
         }
 
-        response = requests.post(
+        response = _post(
             endpoint,
             json=test_payload,
             headers=headers,
@@ -149,7 +167,7 @@ def test_introspection(endpoint: str, headers: Dict[str, str] = None,
             "query": SIMPLE_INTROSPECTION_QUERY
         }
 
-        response = requests.post(
+        response = _post(
             endpoint,
             json=introspection_payload,
             headers=headers,
@@ -167,13 +185,13 @@ def test_introspection(endpoint: str, headers: Dict[str, str] = None,
         if 'data' in result and result['data'] and '__schema' in result['data']:
             print(f"[+][GraphQL] Introspection ENABLED at: {endpoint}")
 
-            # Try full introspection query
+            # Full introspection query with user-configured depth
             full_payload = {
-                "query": INTROSPECTION_QUERY
+                "query": build_introspection_query(depth_limit)
             }
 
             try:
-                full_response = requests.post(
+                full_response = _post(
                     endpoint,
                     json=full_payload,
                     headers=headers,

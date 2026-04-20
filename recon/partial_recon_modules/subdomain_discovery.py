@@ -13,7 +13,7 @@ def run_subdomain_discovery(config: dict) -> None:
     Run partial subdomain discovery using the exact same functions
     as the full pipeline in domain_recon.py.
     """
-    from recon.domain_recon import discover_subdomains, resolve_all_dns, run_puredns_resolve
+    from recon.main_recon_modules.domain_recon import discover_subdomains, resolve_all_dns, run_puredns_resolve
     from recon.project_settings import get_settings
 
     domain = config["domain"]

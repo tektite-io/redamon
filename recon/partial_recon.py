@@ -57,6 +57,7 @@ from recon.partial_recon_modules.parameter_discovery import (
     run_kiterunner,
 )
 from recon.partial_recon_modules.js_analysis import run_jsrecon
+from recon.partial_recon_modules.graphql_scanning import run_graphqlscan
 from recon.partial_recon_modules.vulnerability_scanning import (
     run_nuclei,
     run_security_checks_partial,
@@ -119,6 +120,8 @@ def main():
         run_arjun(config)
     elif tool_id == "JsRecon":
         run_jsrecon(config)
+    elif tool_id == "GraphqlScan":
+        run_graphqlscan(config)
     elif tool_id == "Nuclei":
         run_nuclei(config)
     elif tool_id == "SecurityChecks":

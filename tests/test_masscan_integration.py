@@ -37,11 +37,11 @@ sys.modules["helpers.iana_services"] = _iana_stub
 
 # Now load masscan_scan via importlib to avoid triggering helpers/__init__.py
 _spec = importlib.util.spec_from_file_location(
-    "recon.masscan_scan",
+    "recon.main_recon_modules.masscan_scan",
     str(PROJECT_ROOT / "recon" / "masscan_scan.py"),
 )
 masscan_mod = importlib.util.module_from_spec(_spec)
-sys.modules["recon.masscan_scan"] = masscan_mod
+sys.modules["recon.main_recon_modules.masscan_scan"] = masscan_mod
 _spec.loader.exec_module(masscan_mod)
 
 _is_mock_hostname = masscan_mod._is_mock_hostname

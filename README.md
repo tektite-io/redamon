@@ -13,7 +13,7 @@
 
 <p align="center">
   <a href="https://github.com/samugit83/redamon/stargazers"><img height="24" src="https://img.shields.io/github/stars/samugit83/redamon?style=flat&color=2E8B57&label=Stars" alt="GitHub Stars"/></a>
-  <img height="24" src="https://img.shields.io/badge/v4.0.0-release-2E8B57?style=flat" alt="Version 4.0.0"/>
+  <img height="24" src="https://img.shields.io/badge/v4.1.0-release-2E8B57?style=flat" alt="Version 4.1.0"/>
   <img height="24" src="https://img.shields.io/badge/WARNING-SECURITY%20TOOL-B22222?style=flat" alt="Security Tool Warning"/>
   <img height="24" src="https://img.shields.io/badge/LICENSE-MIT-4169A1?style=flat" alt="MIT License"/>
   <img height="24" src="https://img.shields.io/badge/END--TO--END-PIPELINE-A01025?style=flat" alt="End-to-End Pipeline"/>
@@ -25,7 +25,7 @@
   <img height="24" src="https://img.shields.io/badge/IP%2FCIDR-TARGETING-0D7377?style=flat" alt="IP/CIDR Targeting"/>
   <img height="24" src="https://img.shields.io/badge/70+-SECURITY%20TOOLS-CC8F00?style=flat&logo=hack-the-box&logoColor=white" alt="70+ Security Tools"/>
   <img height="24" src="https://img.shields.io/badge/185,000+-DETECTION%20RULES-8B1142?style=flat" alt="185,000+ Detection Rules"/>
-  <img height="24" src="https://img.shields.io/badge/196+-PROJECT%20SETTINGS-00899B?style=flat" alt="196+ Settings"/>
+  <img height="24" src="https://img.shields.io/badge/245+-PROJECT%20SETTINGS-00899B?style=flat" alt="245+ Settings"/>
   <img height="24" src="https://img.shields.io/badge/400+-AI%20MODELS-04A878?style=flat&logo=huggingface&logoColor=white" alt="400+ AI Models"/>
   <img height="24" src="https://img.shields.io/badge/%F0%9F%96%A5%EF%B8%8F_LOCAL%20MODELS-OLLAMA%20%7C%20vLLM%20%7C%20LM%20Studio-B85C00?style=flat" alt="Local Models Support"/>
   <img height="24" src="https://img.shields.io/badge/Metasploit-Framework-1A6DAA?style=flat" alt="Metasploit Framework"/>
@@ -375,7 +375,7 @@ The platform is built around six pillars:
 | **Attack Surface Graph** | A Neo4j knowledge graph with 17 node types and 20+ relationship types that serves as the single source of truth for every finding — and the primary data source the AI agent queries before every decision. |
 | **EvoGraph** | A persistent, evolutionary attack chain graph in Neo4j that tracks every step, finding, decision, and failure across the attack lifecycle — bridging the recon graph and enabling cross-session intelligence accumulation. |
 | **CypherFix** | Automated vulnerability remediation pipeline — an AI triage agent correlates and prioritizes findings from the graph, then a CodeFix agent clones the target repository, implements fixes using a ReAct loop with 11 code tools, and opens a GitHub pull request. |
-| **Project Settings Engine** | 196+ per-project parameters — exposed through the webapp UI — that control every tool's behavior, from Naabu thread counts to Nuclei severity filters to agent approval gates. |
+| **Project Settings Engine** | 245+ per-project parameters — exposed through the webapp UI — that control every tool's behavior, from Naabu thread counts to Nuclei severity filters to agent approval gates. |
 
 ---
 
@@ -383,7 +383,7 @@ The platform is built around six pillars:
 
 ### Reconnaissance Pipeline
 
-A fully automated, **parallelized** scanning engine running inside a Kali Linux container. Given a root domain, subdomain list, or IP/CIDR ranges, it maps the complete external attack surface using a **fan-out / fan-in** pipeline architecture: subdomain discovery (crt.sh, HackerTarget, Subfinder, Amass, Knockpy — all 5 tools run concurrently), **puredns wildcard filtering** (validates subdomains against public DNS resolvers and removes wildcard/poisoned entries), parallel DNS resolution (20 workers), Shodan + port scanning (Masscan / Naabu — both run in parallel), passive threat intelligence enrichment (7 tools: Censys, FOFA, OTX, Netlas, VirusTotal, ZoomEye, CriminalIP — all run in parallel with port scanning) in parallel, Nmap service version detection and NSE vulnerability scripts on discovered ports, HTTP probing with technology fingerprinting (httpx + Wappalyzer), resource enumeration (Katana, Hakrawler, GAU, ParamSpider, Kiterunner — internally parallel, followed by jsluice JavaScript analysis, FFuf directory fuzzing with custom wordlist support, and Arjun hidden parameter discovery with multi-method parallel execution), and vulnerability scanning (Nuclei with 9,000+ templates + DAST fuzzing). Neo4j graph updates run in a dedicated background thread so the main pipeline is never blocked. Results are stored as JSON and imported into the Neo4j graph.
+A fully automated, **parallelized** scanning engine running inside a Kali Linux container. Given a root domain, subdomain list, or IP/CIDR ranges, it maps the complete external attack surface using a **fan-out / fan-in** pipeline architecture: subdomain discovery (crt.sh, HackerTarget, Subfinder, Amass, Knockpy — all 5 tools run concurrently), **puredns wildcard filtering** (validates subdomains against public DNS resolvers and removes wildcard/poisoned entries), parallel DNS resolution (20 workers), Shodan + port scanning (Masscan / Naabu — both run in parallel), passive threat intelligence enrichment (7 tools: Censys, FOFA, OTX, Netlas, VirusTotal, ZoomEye, CriminalIP — all run in parallel with port scanning) in parallel, Nmap service version detection and NSE vulnerability scripts on discovered ports, HTTP probing with technology fingerprinting (httpx + Wappalyzer), resource enumeration (Katana, Hakrawler, GAU, ParamSpider, Kiterunner — internally parallel, followed by jsluice JavaScript analysis, FFuf directory fuzzing with custom wordlist support, and Arjun hidden parameter discovery with multi-method parallel execution), and a **parallel vulnerability phase** where Nuclei (9,000+ templates + DAST fuzzing) runs concurrently with a dedicated **GraphQL security scanner** (introspection detection, schema extraction, sensitive-field flagging, plus 12 graphql-cop misconfiguration checks). Neo4j graph updates run in a dedicated background thread so the main pipeline is never blocked. Results are stored as JSON and imported into the Neo4j graph.
 
 > **[Wiki: Running Reconnaissance](https://github.com/samugit83/redamon/wiki/Running-Reconnaissance)** | **[Technical: README.RECON.md](readmes/README.RECON.md)**
 
@@ -421,7 +421,8 @@ A fully automated, **parallelized** scanning engine running inside a Kali Linux 
 | | **Endpoint Extraction** | REST, GraphQL, WebSocket, router patterns | Passive | Per JS file |
 | | **Framework Fingerprinting** | 12 built-in + custom signatures | Passive | Per JS file |
 | | **DOM Sink Detection** | 17 XSS/prototype pollution patterns | Passive | Per JS file |
-| **Vulnerability Scanning** | **Vulnerability Scanning** | Nuclei (9,000+ templates + DAST + custom template upload) | Active | Internal parallel |
+| **Vulnerability Scanning** | **Vulnerability Scanning** | Nuclei (9,000+ templates + DAST + custom template upload) | Active | Parallel with GraphQL Scan (GROUP 6 Phase A) |
+| **GraphQL Security** | **GraphQL Security Testing** | Endpoint discovery, introspection test, schema extraction, sensitive-field detection, graphql-cop (12 misconfig checks: alias/batch/directive DoS, GraphiQL, trace mode, GET/POST CSRF, field suggestions) | Active / Passive | Parallel with Nuclei (GROUP 6 Phase A) |
 | **Security Checks** | **Security Checks** | WAF bypass, direct IP access, TLS expiry, missing headers, cache-control | Active | Parallel workers |
 | **CVE & MITRE** | **CVE Enrichment** | NVD API, Vulners API | Passive | Sequential |
 | | **MITRE Enrichment** | CWE / CAPEC mapping | Passive | Sequential |
@@ -552,9 +553,15 @@ Scans GitHub repositories, gists, and commit history for exposed secrets using *
 
 Scans GitHub repositories for leaked credentials using **700+ detectors** with automatic verification of whether discovered secrets are still active. Powered by the TruffleHog engine (`trufflesecurity/trufflehog`), it detects API keys, passwords, tokens, certificates, and more across full commit history. Results are stored as `TrufflehogScan → TrufflehogRepository → TrufflehogFinding` nodes in the Neo4j graph. Both GitHub Hunt and TruffleHog are accessible from the **"Other Scans" modal** in the graph toolbar.
 
+### GraphQL Security Testing
+
+Dedicated GraphQL security scanner running as a **parallel sibling to Nuclei** (GROUP 6 Phase A). Auto-discovers GraphQL endpoints from five sources (user-specified URLs, HTTP probe `Content-Type` matches, resource-enum paths, JS Recon findings, and pattern probing on common paths like `/graphql`, `/api/graphql`, `/v1/graphql`), tests each for exposed introspection with a configurable TypeRef depth (1-20), extracts the full schema and computes a hash for change detection, counts queries/mutations/subscriptions, and flags sensitive fields (`password`, `token`, `ssn`, `cvv`, `credit`, etc.). Optional **graphql-cop** Docker-in-Docker integration runs 12 additional misconfiguration checks per endpoint: alias overloading, batch query DoS, directive overloading, circular introspection DoS, GraphiQL/Playground detection, Apollo trace mode, GET-method queries/mutations, POST url-encoded CSRF, field suggestions, and unhandled error leakage. Supports 5 auth modes (bearer, cookie, custom header, basic, API key), global rate limiting with retries on `429`/`5xx`, Tor routing via `--network host`, RoE host exclusion with wildcards, and endpoint capability flags (`graphql_graphiql_exposed`, `graphql_tracing_enabled`, `graphql_get_allowed`, `graphql_batching_enabled`) persisted on the Endpoint node even for negative results. Stealth mode forces the four DoS-class tests off and drops concurrency to 1.
+
+> **[Wiki: GraphQL Security Testing](https://github.com/samugit83/redamon/wiki/GraphQL-Security-Testing)** | **[Technical: README.RECON.md — Module 5b](readmes/README.RECON.md#module-5b-graphql_scan)**
+
 ### Project Settings
 
-**196+ configurable parameters** across 14 tabs controlling every tool's behavior — from scan modules to agent approval gates. Managed through the webapp UI.
+**245+ configurable parameters** across 16 tabs controlling every tool's behavior — from scan modules to agent approval gates. Managed through the webapp UI.
 
 > **[Wiki: Project Settings Reference](https://github.com/samugit83/redamon/wiki/Project-Settings-Reference)**
 

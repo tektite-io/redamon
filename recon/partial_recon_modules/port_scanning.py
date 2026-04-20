@@ -366,13 +366,13 @@ def _normalize_masscan_result(result: dict) -> None:
 
 def run_naabu(config: dict) -> None:
     """Run partial port scanning using Naabu (run_port_scan from port_scan.py)."""
-    from recon.port_scan import run_port_scan
+    from recon.main_recon_modules.port_scan import run_port_scan
     _run_port_scanner(config, tool_id="Naabu", scan_fn=run_port_scan, label="Naabu")
 
 
 def run_masscan(config: dict) -> None:
     """Run partial port scanning using Masscan (run_masscan_scan from masscan_scan.py)."""
-    from recon.masscan_scan import run_masscan_scan
+    from recon.main_recon_modules.masscan_scan import run_masscan_scan
     _run_port_scanner(
         config, tool_id="Masscan", scan_fn=run_masscan_scan, label="Masscan",
         pre_settings={"MASSCAN_ENABLED": True},
@@ -390,7 +390,7 @@ def run_nmap(config: dict) -> None:
     Technology, Vulnerability, and CVE nodes from NSE script findings.
     """
     import ipaddress as _ipaddress
-    from recon.nmap_scan import run_nmap_scan
+    from recon.main_recon_modules.nmap_scan import run_nmap_scan
     from recon.main import merge_nmap_into_port_scan
     from recon.project_settings import get_settings
 

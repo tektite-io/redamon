@@ -45,9 +45,10 @@ Network pentesters and infrastructure security teams mapping an external or inte
 8. MITRE enrichment classifies vulnerabilities by CWE and attack patterns
 9. Security checks flag exposed admin ports, databases, open relays, and misconfigured services`,
   parameters: {
-    // Modules: domain_discovery + port_scan + http_probe (for web services on found ports)
-    // No resource_enum, no vuln_scan (nuclei), no js_recon
-    scanModules: ['domain_discovery', 'port_scan', 'http_probe'],
+    // Modules: domain_discovery + port_scan + http_probe + vuln_scan
+    // vuln_scan is required for CVE lookup, MITRE enrichment, and security checks
+    // (Nuclei itself is disabled below). No resource_enum, no js_recon.
+    scanModules: ['domain_discovery', 'port_scan', 'http_probe', 'vuln_scan'],
 
     stealthMode: false,
     useTorForRecon: false,
@@ -229,5 +230,9 @@ Network pentesters and infrastructure security teams mapping an external or inte
     zoomEyeEnabled: false,
     criminalIpEnabled: false,
     uncoverEnabled: false,
+
+    // --- GraphQL: explicit OFF so switching from a GraphQL-enabled preset resets cleanly ---
+    graphqlSecurityEnabled: false,
+    graphqlCopEnabled: false,
   },
 }

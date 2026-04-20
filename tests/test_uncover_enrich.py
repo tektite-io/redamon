@@ -1,11 +1,11 @@
-"""Tests for recon/uncover_enrich.py"""
+"""Tests for recon/main_recon_modules/uncover_enrich.py"""
 import json
 import os
 import sys
 import unittest
 from unittest.mock import patch, MagicMock
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'recon'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'recon', 'main_recon_modules'))
 
 from uncover_enrich import (
     _build_provider_config,

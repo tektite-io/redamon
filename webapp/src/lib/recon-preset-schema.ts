@@ -183,6 +183,40 @@ export const reconPresetSchema = z.object({
   jsReconMinConfidence: str,
   jsReconStandaloneCrawlDepth: int,
 
+  // -- GraphQL Security Scanner --
+  graphqlSecurityEnabled: bool,
+  graphqlIntrospectionTest: bool,
+  graphqlTimeout: int,
+  graphqlRateLimit: int,
+  graphqlConcurrency: int,
+  graphqlAuthType: str,
+  graphqlAuthValue: str,
+  graphqlAuthHeader: str,
+  graphqlEndpoints: str,
+  graphqlDepthLimit: int,
+  graphqlRetryCount: int,
+  graphqlRetryBackoff: float,
+  graphqlVerifySsl: bool,
+
+  // -- GraphQL Cop (external Docker-based misconfig scanner) --
+  graphqlCopEnabled: bool,
+  graphqlCopDockerImage: str,
+  graphqlCopTimeout: int,
+  graphqlCopForceScan: bool,
+  graphqlCopDebug: bool,
+  graphqlCopTestFieldSuggestions: bool,
+  graphqlCopTestIntrospection: bool,
+  graphqlCopTestGraphiql: bool,
+  graphqlCopTestGetMethod: bool,
+  graphqlCopTestAliasOverloading: bool,
+  graphqlCopTestBatchQuery: bool,
+  graphqlCopTestTraceMode: bool,
+  graphqlCopTestDirectiveOverloading: bool,
+  graphqlCopTestCircularIntrospection: bool,
+  graphqlCopTestGetMutation: bool,
+  graphqlCopTestPostCsrf: bool,
+  graphqlCopTestUnhandledError: bool,
+
   // -- Directory Fuzzing: ffuf --
   ffufEnabled: bool,
   ffufWordlist: str,
@@ -382,7 +416,7 @@ export const RECON_PARAMETER_CATALOG = `
 - subfinderMaxResults: integer
 - amassEnabled: boolean - Run Amass
 - amassMaxResults: integer
-- amassTimeout: integer - Amass timeout in seconds
+- amassTimeout: integer - Amass timeout in MINUTES (default 10)
 - amassActive: boolean - Amass active probing mode
 - amassBrute: boolean - Amass DNS brute-force
 - purednsEnabled: boolean - Run PureDNS wildcard filtering
@@ -523,6 +557,40 @@ export const RECON_PARAMETER_CATALOG = `
 - jsReconIncludeArchivedJs: boolean
 - jsReconMinConfidence: string - "low", "medium", "high"
 - jsReconStandaloneCrawlDepth: integer
+
+## GraphQL Security Scanner (Group 6 - active, sends introspection probes)
+- graphqlSecurityEnabled: boolean - Master toggle for GraphQL scanning (default false)
+- graphqlIntrospectionTest: boolean - Probe __schema to detect exposed introspection (default true)
+- graphqlTimeout: integer - Per-endpoint request timeout in seconds (default 30)
+- graphqlRateLimit: integer - Requests per second, capped by ROE_GLOBAL_MAX_RPS (default 10)
+- graphqlConcurrency: integer - Parallel endpoint tests (default 5)
+- graphqlAuthType: string - "", "bearer", "basic", "cookie", "custom"
+- graphqlAuthValue: string - Auth credential (token / user:pass / cookie string)
+- graphqlAuthHeader: string - Header name when graphqlAuthType = "custom"
+- graphqlEndpoints: string - Comma-separated custom GraphQL endpoints (empty = auto-discover)
+- graphqlDepthLimit: integer - Max introspection query nesting depth (default 10)
+- graphqlRetryCount: integer - Retry attempts on network failure (default 3)
+- graphqlRetryBackoff: number - Exponential backoff base seconds between retries (default 2.0)
+- graphqlVerifySsl: boolean - Reject invalid / self-signed TLS certs (default true)
+
+## GraphQL Cop (external Docker-based misconfig scanner - Phase 2)
+- graphqlCopEnabled: boolean - Master toggle for graphql-cop (default false, opt-in)
+- graphqlCopDockerImage: string - Pinned image tag (default "dolevf/graphql-cop:1.14")
+- graphqlCopTimeout: integer - Per-endpoint timeout in seconds (default 120)
+- graphqlCopForceScan: boolean - -f flag: scan even if endpoint doesn't look GraphQL-like
+- graphqlCopDebug: boolean - -d flag: adds X-GraphQL-Cop-Test header per request
+- graphqlCopTestFieldSuggestions: boolean - LOW info-leak check (default true)
+- graphqlCopTestIntrospection: boolean - HIGH info-leak check (default false, dedupes with native scanner)
+- graphqlCopTestGraphiql: boolean - LOW info-leak, detects GraphiQL/Playground UI (default true)
+- graphqlCopTestGetMethod: boolean - MEDIUM CSRF, GET-method queries allowed (default true)
+- graphqlCopTestAliasOverloading: boolean - HIGH DoS, 101-alias rate-limit bypass (default true, disabled in stealth)
+- graphqlCopTestBatchQuery: boolean - HIGH DoS, array-based batch queries (default true, disabled in stealth)
+- graphqlCopTestTraceMode: boolean - INFO, Apollo tracing extension disclosure (default true)
+- graphqlCopTestDirectiveOverloading: boolean - HIGH DoS (default true, disabled in stealth)
+- graphqlCopTestCircularIntrospection: boolean - HIGH DoS, deep nested introspection (default true, disabled in stealth)
+- graphqlCopTestGetMutation: boolean - MEDIUM CSRF, GET-based mutations (default true)
+- graphqlCopTestPostCsrf: boolean - MEDIUM CSRF, url-encoded POST (default true)
+- graphqlCopTestUnhandledError: boolean - INFO info-leak, exception stack traces (default true)
 
 ## Directory Fuzzing - ffuf
 - ffufEnabled: boolean - Run ffuf directory fuzzer

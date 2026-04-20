@@ -89,6 +89,20 @@ Bug bounty hunters and pentesters targeting modern web applications built with R
     arjunEnabled: false,
     paramspiderEnabled: false,
 
+    // --- GraphQL Security: JS-heavy crawl frequently surfaces /graphql endpoints in
+    //     compiled SPA bundles (Apollo/urql/Relay configs). Enable introspection to
+    //     extract the schema -- schemas commonly contain sensitive field names
+    //     (password, apiKey, etc.) which is the preset's core mission. ---
+    graphqlSecurityEnabled: true,
+    graphqlIntrospectionTest: true,
+    graphqlCopEnabled: true,
+    // Info-leak + CSRF checks only (field suggestions, tracing, unhandled errors are
+    // all secret-leaking). DoS probes off -- not the preset's focus.
+    graphqlCopTestAliasOverloading: false,
+    graphqlCopTestBatchQuery: false,
+    graphqlCopTestDirectiveOverloading: false,
+    graphqlCopTestCircularIntrospection: false,
+
     // Disable security/vuln modules via master switches
     cveLookupEnabled: false,
     securityCheckEnabled: false,

@@ -336,8 +336,13 @@ flowchart LR
         RE[Resource Enum<br/>Katana ∥ Hakrawler ∥ GAU ∥ ParamSpider ∥ Kiterunner<br/>then jsluice → FFuf → Arjun]
     end
 
-    subgraph G6["GROUP 6 — sequential"]
-        VS[Vuln Scan — Nuclei<br/>+ MITRE Enrichment]
+    subgraph G6["GROUP 6 Phase A — parallel"]
+        VS[Vuln Scan — Nuclei]
+        GQL[GraphQL Security<br/>Introspection + graphql-cop]
+    end
+
+    subgraph G6B["GROUP 6 Phase B — sequential"]
+        MIT[MITRE Enrichment<br/>CWE + CAPEC]
     end
 
     subgraph Output["📤 Output"]
@@ -350,7 +355,8 @@ flowchart LR
     G3 -->|fan-in: merge| G4
     G4 --> G5
     G5 --> G6
-    G6 --> JSON
+    G6 --> G6B
+    G6B --> JSON
     JSON --> Graph
 ```
 
@@ -478,15 +484,27 @@ flowchart TB
         FwSink --> Out4b
     end
 
-    subgraph Phase5["GROUP 6 — Vulnerability Scanning"]
+    subgraph Phase5["GROUP 6 Phase A — Fan-Out: Nuclei ∥ GraphQL Security (parallel)"]
         direction TB
-        Out4b --> Nuclei[Nuclei Scanner]
+        Out4b --> FanOut6
 
-        subgraph NucleiFeatures["Scan Types"]
+        subgraph FanOut6["ThreadPoolExecutor — 2 parallel tasks (_isolated wrappers, deep-copy snapshots)"]
+            direction LR
+            Nuclei[Nuclei Scanner]
+            GraphQL[GraphQL Security Scanner]
+        end
+
+        subgraph NucleiFeatures["Nuclei Scan Types"]
             CVE[CVE Detection<br/>Known vulnerabilities]
             DAST[DAST Fuzzing<br/>XSS, SQLi, SSTI]
             Misconfig[Misconfiguration<br/>Exposed panels, defaults]
             Info[Info Disclosure<br/>Backup files, .git]
+        end
+
+        subgraph GraphQLFeatures["GraphQL Tests"]
+            Discover[Endpoint Discovery<br/>pattern + evidence probing]
+            Intros[Introspection Test<br/>schema + sensitive fields]
+            Cop[graphql-cop<br/>12 misconfig checks]
         end
 
         Nuclei --> CVE
@@ -494,11 +512,21 @@ flowchart TB
         Nuclei --> Misconfig
         Nuclei --> Info
 
-        CVE --> MITRE[MITRE Enrichment<br/>CWE + CAPEC]
-        DAST --> MITRE
-        Misconfig --> MITRE
-        Info --> MITRE
+        GraphQL --> Discover
+        GraphQL --> Intros
+        GraphQL --> Cop
 
+        CVE --> FanIn6
+        DAST --> FanIn6
+        Misconfig --> FanIn6
+        Info --> FanIn6
+        Discover --> FanIn6
+        Intros --> FanIn6
+        Cop --> FanIn6
+    end
+
+    subgraph Phase5b["GROUP 6 Phase B — MITRE Enrichment (sequential, depends on Nuclei CVEs)"]
+        FanIn6[Fan-In: Merge Nuclei + GraphQL findings] --> MITRE[MITRE Enrichment<br/>CWE + CAPEC]
         MITRE --> Out5[(Vulnerabilities + Attack Patterns)]
     end
 
@@ -578,7 +606,8 @@ The recon pipeline uses a **fan-out / fan-in** pattern with Python's `concurrent
 | **GROUP 4** | HTTP Probe (httpx) | Sequential (internally parallel) | Needs ports from GROUP 3 |
 | **GROUP 5** | Resource Enum (Katana + GAU + Kiterunner) | 3 tools internally parallel | Needs live URLs from GROUP 4 |
 | **GROUP 5b** | JS Recon Scanner (100 regex patterns, key validation, source maps, dependency confusion, endpoint extraction, DOM sinks) | 5 analyzers parallel per file | Needs JS files from GROUP 5; runs if `JS_RECON_ENABLED` |
-| **GROUP 6** | Vuln Scan (Nuclei) + MITRE Enrichment | Sequential | Needs endpoints from GROUP 5/5b |
+| **GROUP 6 Phase A** | Vuln Scan (Nuclei) ∥ GraphQL Security Testing | 2 parallel tasks (ThreadPoolExecutor, `_isolated` wrappers) | Needs endpoints from GROUP 5/5b |
+| **GROUP 6 Phase B** | MITRE Enrichment (CWE + CAPEC) | Sequential | Needs CVEs from Phase A (Nuclei) |
 
 ### Background Graph DB Updates
 
@@ -599,7 +628,7 @@ Each parallelized tool function is thread-safe:
 
 ## 🎯 Partial Recon
 
-Partial Recon lets you run any single tool from the pipeline independently, without triggering a full scan. From the Workflow View or section headers, click the play button on any tool to open a modal that shows existing graph data (subdomains, IPs, ports, BaseURLs, endpoints), accepts custom targets, and launches the tool in isolation. Results are merged into the existing Neo4j graph via `MERGE` -- no duplicates. All 20 pipeline tools are supported. The tool runs with the project's saved settings (timeouts, wordlists, API keys, proxy, Tor). Custom inputs are validated in real time (scope checks, IP/CIDR format, port ranges). See `recon/partial_recon.py` for the implementation.
+Partial Recon lets you run any single tool from the pipeline independently, without triggering a full scan. From the Workflow View or section headers, click the play button on any tool to open a modal that shows existing graph data (subdomains, IPs, ports, BaseURLs, endpoints), accepts custom targets, and launches the tool in isolation. Results are merged into the existing Neo4j graph via `MERGE` -- no duplicates. All 21 pipeline tools are supported (including `graphql_scan` — custom URLs are validated against project scope and injected via `GRAPHQL_ENDPOINTS`). The tool runs with the project's saved settings (timeouts, wordlists, API keys, proxy, Tor). Custom inputs are validated in real time (scope checks, IP/CIDR format, port ranges). See `recon/partial_recon.py` for the implementation.
 
 > **[Wiki: Recon Pipeline Workflow -- Partial Recon](https://github.com/samugit83/redamon/wiki/Recon-Pipeline-Workflow#partial-recon)**
 
@@ -934,6 +963,122 @@ flowchart TB
 | **CAPEC Attacks** | Attack techniques |
 
 📖 **Detailed documentation:** [readmes/README.VULN_SCAN.md](README.VULN_SCAN.md) | [readmes/README.MITRE.md](README.MITRE.md)
+
+---
+
+### Module 5b: `graphql_scan`
+
+Dedicated GraphQL security scanner — runs as **GROUP 6 Phase A in parallel with Nuclei** because both scanners consume `BaseURL` / `Endpoint` / `Technology` and emit `Vulnerability` nodes but have zero data dependency on each other. Each phase-A tool is wrapped in an `_isolated` variant that deep-copies `combined_result` so the two threads never race on the shared dict.
+
+Toggle: `GRAPHQL_SECURITY_ENABLED` (default: `false`, opt-in).
+
+```mermaid
+flowchart TB
+    subgraph Input
+        BaseURLs[BaseURLs]
+        Endpoints[Endpoints]
+        JSFindings[JS Recon findings<br/>graphql/graphql_introspection]
+        UserURLs[User-specified URLs<br/>GRAPHQL_ENDPOINTS]
+    end
+
+    subgraph Discovery["Endpoint Discovery"]
+        HTTPProbe[HTTP probe matches<br/>Content-Type: application/graphql]
+        ResourceEnum[Resource enum paths<br/>/graphql, /gql, /query POST]
+        Pattern[Pattern probing<br/>/graphql, /api/graphql,<br/>/v1/graphql, /v2/graphql]
+        Secondary[Secondary patterns<br/>/query, /graphiql, /playground<br/>only on bases with evidence]
+    end
+
+    subgraph Filter["RoE Filter"]
+        ROE[ROE_EXCLUDED_HOSTS<br/>*.example.com wildcards]
+    end
+
+    subgraph NativeTest["Native Introspection Test"]
+        Probe[POST __typename<br/>reachability check]
+        Simple[Simple introspection<br/>queryType/mutationType]
+        Deep[Full introspection<br/>TypeRef depth 1-20]
+        Sens[Sensitive field detection<br/>password, token, ssn, cvv...]
+    end
+
+    subgraph CopTest["graphql-cop Docker<br/>dolevf/graphql-cop:1.14"]
+        Cop1[field_suggestions]
+        Cop2[detect_graphiql]
+        Cop3[get_method_support]
+        Cop4[trace_mode]
+        Cop5[alias_overloading DoS]
+        Cop6[batch_query DoS]
+        Cop7[directive_overloading DoS]
+        Cop8[circular_introspection DoS]
+        Cop9[get_based_mutation]
+        Cop10[post_based_csrf]
+        Cop11[unhandled_error_detection]
+    end
+
+    subgraph Output
+        Vulns[Vulnerability nodes]
+        Flags[Endpoint capability flags<br/>graphql_graphiql_exposed,<br/>graphql_tracing_enabled,<br/>graphql_get_allowed, etc.]
+        Schema[Schema hash + operation counts<br/>queries/mutations/subscriptions]
+    end
+
+    BaseURLs --> Discovery
+    Endpoints --> Discovery
+    JSFindings --> Discovery
+    UserURLs --> Discovery
+
+    Discovery --> HTTPProbe
+    Discovery --> ResourceEnum
+    Discovery --> Pattern
+    Discovery --> Secondary
+
+    HTTPProbe --> Filter
+    ResourceEnum --> Filter
+    Pattern --> Filter
+    Secondary --> Filter
+
+    Filter --> ROE
+    ROE --> NativeTest
+    ROE --> CopTest
+
+    NativeTest --> Probe
+    Probe --> Simple
+    Simple --> Deep
+    Deep --> Sens
+
+    NativeTest --> Vulns
+    NativeTest --> Schema
+    CopTest --> Vulns
+    CopTest --> Flags
+```
+
+**Capabilities:**
+
+| Layer | What It Does |
+|-------|--------------|
+| **Endpoint discovery** | Merges user-specified URLs, HTTP probe matches (`Content-Type: application/graphql`), resource-enum endpoints (paths containing `graphql`/`gql`/`query` via POST, or with `query`/`mutation`/`variables`/`operationName` parameters), JS Recon findings (`graphql` / `graphql_introspection` types), and pattern probes (primary `/graphql`, `/api/graphql`, `/v1/graphql`, `/v2/graphql`; secondary `/query`, `/gql`, `/graphiql`, `/playground` only on bases with prior evidence). |
+| **RoE filtering** | Drops endpoints matching `ROE_EXCLUDED_HOSTS` (wildcards supported). Skipped count exposed in `summary.endpoints_skipped`. |
+| **Native introspection test** | 3-step probe per endpoint: `POST { __typename }` reachability, simple introspection, full introspection at configurable TypeRef depth (1-20, default 10). Extracts schema hash (16-char SHA256), query/mutation/subscription counts, and sensitive-field list (`password`, `secret`, `token`, `key`, `api`, `private`, `credential`, `auth`, `ssn`, `credit`, `card`, `payment`, `bank`, `account`, `pin`, `cvv`, `salary`, `medical`). Response larger than 10 MB falls back to simple result. |
+| **graphql-cop (opt-in)** | Docker-in-Docker wrapper around `dolevf/graphql-cop:1.14`. Runs 12 checks per endpoint: field suggestions, GraphiQL/Playground detection, trace mode, GET-method queries/mutations, POST url-encoded CSRF, alias overloading (DoS), batch query (DoS), directive overloading (DoS), circular introspection (DoS), unhandled errors. Uses `--network host` + `-T` flag when Tor is enabled; forwards `HTTP_PROXY` via `-x`. Per-test toggles are applied post-execution because the `1.14` image does not honor the `-e` flag. |
+| **Authentication** | 5 modes: `bearer`, `cookie`, `header` (custom name), `basic` (base64), `apikey`. Values masked in logs. Same headers propagate to graphql-cop via `-H '{"K":"V"}'` JSON args. |
+| **Rate limiting + retries** | Global RPS cap (`GRAPHQL_RATE_LIMIT`, 0-100), retry on `429`/`5xx` with exponential backoff (`GRAPHQL_RETRY_COUNT`, `GRAPHQL_RETRY_BACKOFF`), concurrency clamp (1-20). Sequential mode at `concurrency=1`. |
+| **Endpoint enrichment** | Updates existing `Endpoint` nodes with capability flags (`graphql_graphiql_exposed`, `graphql_tracing_enabled`, `graphql_get_allowed`, `graphql_field_suggestions_enabled`, `graphql_batching_enabled`, `graphql_cop_ran`) — recorded even on negative results so the graph captures server state explicitly. |
+
+**Stealth overrides:** `GRAPHQL_RATE_LIMIT=2`, `GRAPHQL_CONCURRENCY=1`, `GRAPHQL_TIMEOUT=60`, and the four DoS-class graphql-cop tests (alias / batch / directive / circular) forced off.
+
+**Schema contract:** `KNOWN_VULN_KEYS` + `KNOWN_ENDPOINT_INFO_KEYS` in [graph_db/mixins/graphql_mixin.py](../graph_db/mixins/graphql_mixin.py) pin every field the scanner may emit. Adding a new key without updating the mixin triggers a warning at graph-ingest time — no silent drops.
+
+**Source layout:**
+
+```
+recon/graphql_scan/
+├── __init__.py           # Package entry point
+├── scanner.py            # Orchestration (run_graphql_scan, run_graphql_scan_isolated, test_single_endpoint)
+├── discovery.py          # Endpoint discovery from 5 sources + RoE filtering
+├── introspection.py      # Configurable-depth introspection query + schema operations
+├── misconfig.py          # graphql-cop Docker-in-Docker wrapper (12 tests)
+├── normalizers.py        # Finding normalization + severity aggregation
+└── auth.py               # 5 auth modes (bearer/cookie/header/basic/apikey) with masked logs
+```
+
+📖 **Detailed documentation:** [readmes/GRAPH.SCHEMA.md — GraphQL-specific Endpoint & Vulnerability properties](GRAPH.SCHEMA.md) | **[Wiki: GraphQL Security Testing](https://github.com/samugit83/redamon/wiki/GraphQL-Security-Testing)**
 
 ---
 

@@ -19,7 +19,7 @@ def run_shodan(config: dict) -> None:
     (host lookup, reverse DNS, domain DNS, passive CVEs).
     Users can also provide custom IPs to enrich.
     """
-    from recon.shodan_enrich import run_shodan_enrichment
+    from recon.main_recon_modules.shodan_enrich import run_shodan_enrichment
     from recon.project_settings import get_settings
 
     domain = config["domain"]
@@ -211,7 +211,7 @@ def run_urlscan(config: dict) -> None:
     Phase A (discovery): discovers subdomains, IPs, external domains, domain age.
     Phase B (enrichment): enriches existing BaseURLs with screenshots/endpoints/parameters.
     """
-    from recon.urlscan_enrich import run_urlscan_discovery_only
+    from recon.main_recon_modules.urlscan_enrich import run_urlscan_discovery_only
     from recon.project_settings import get_settings
 
     domain = config["domain"]
@@ -286,7 +286,7 @@ def run_uncover(config: dict) -> None:
     search engines to discover additional IPs, subdomains, ports, and URLs
     associated with the target domain.
     """
-    from recon.uncover_enrich import run_uncover_expansion
+    from recon.main_recon_modules.uncover_enrich import run_uncover_expansion
     from recon.project_settings import get_settings
 
     domain = config["domain"]
@@ -494,13 +494,13 @@ def run_osint_enrichment(config: dict) -> None:
 
     # OSINT sub-tool registry (same as main.py GROUP 3b)
     _osint_tools = {
-        'censys': ('CENSYS_ENABLED', 'recon.censys_enrich', 'run_censys_enrichment_isolated', 'update_graph_from_censys'),
-        'fofa': ('FOFA_ENABLED', 'recon.fofa_enrich', 'run_fofa_enrichment_isolated', 'update_graph_from_fofa'),
-        'otx': ('OTX_ENABLED', 'recon.otx_enrich', 'run_otx_enrichment_isolated', 'update_graph_from_otx'),
-        'netlas': ('NETLAS_ENABLED', 'recon.netlas_enrich', 'run_netlas_enrichment_isolated', 'update_graph_from_netlas'),
-        'virustotal': ('VIRUSTOTAL_ENABLED', 'recon.virustotal_enrich', 'run_virustotal_enrichment_isolated', 'update_graph_from_virustotal'),
-        'zoomeye': ('ZOOMEYE_ENABLED', 'recon.zoomeye_enrich', 'run_zoomeye_enrichment_isolated', 'update_graph_from_zoomeye'),
-        'criminalip': ('CRIMINALIP_ENABLED', 'recon.criminalip_enrich', 'run_criminalip_enrichment_isolated', 'update_graph_from_criminalip'),
+        'censys': ('CENSYS_ENABLED', 'recon.main_recon_modules.censys_enrich', 'run_censys_enrichment_isolated', 'update_graph_from_censys'),
+        'fofa': ('FOFA_ENABLED', 'recon.main_recon_modules.fofa_enrich', 'run_fofa_enrichment_isolated', 'update_graph_from_fofa'),
+        'otx': ('OTX_ENABLED', 'recon.main_recon_modules.otx_enrich', 'run_otx_enrichment_isolated', 'update_graph_from_otx'),
+        'netlas': ('NETLAS_ENABLED', 'recon.main_recon_modules.netlas_enrich', 'run_netlas_enrichment_isolated', 'update_graph_from_netlas'),
+        'virustotal': ('VIRUSTOTAL_ENABLED', 'recon.main_recon_modules.virustotal_enrich', 'run_virustotal_enrichment_isolated', 'update_graph_from_virustotal'),
+        'zoomeye': ('ZOOMEYE_ENABLED', 'recon.main_recon_modules.zoomeye_enrich', 'run_zoomeye_enrichment_isolated', 'update_graph_from_zoomeye'),
+        'criminalip': ('CRIMINALIP_ENABLED', 'recon.main_recon_modules.criminalip_enrich', 'run_criminalip_enrichment_isolated', 'update_graph_from_criminalip'),
     }
 
     # Filter to enabled sub-tools with valid API keys

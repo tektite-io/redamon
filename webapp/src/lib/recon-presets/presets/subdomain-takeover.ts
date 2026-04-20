@@ -41,8 +41,12 @@ Bug bounty hunters and security teams looking for subdomain takeover vulnerabili
 5. GAU pulls historical subdomain data from web archives
 6. Nuclei runs takeover-specific templates against all probed hosts to detect exploitable dangling records`,
   parameters: {
-    // Pipeline modules: domain_discovery + http_probe + vuln_scan (for Nuclei takeover)
-    scanModules: ['domain_discovery', 'http_probe', 'vuln_scan'],
+    // Pipeline modules: domain_discovery + http_probe + resource_enum + vuln_scan.
+    // resource_enum is required for GAU to run (historical subdomain data from web
+    // archives). vuln_scan is required for Nuclei takeover templates. All other
+    // resource_enum tools (Katana, Hakrawler, ffuf, Kiterunner, Arjun, jsluice,
+    // ParamSpider) are explicitly disabled below -- only GAU runs.
+    scanModules: ['domain_discovery', 'http_probe', 'resource_enum', 'vuln_scan'],
 
     stealthMode: false,
     useTorForRecon: false,
@@ -148,5 +152,9 @@ Bug bounty hunters and security teams looking for subdomain takeover vulnerabili
     zoomEyeEnabled: false,
     criminalIpEnabled: false,
     uncoverEnabled: false,
+
+    // --- GraphQL: explicit OFF so switching from a GraphQL-enabled preset resets cleanly ---
+    graphqlSecurityEnabled: false,
+    graphqlCopEnabled: false,
   },
 }

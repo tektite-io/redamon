@@ -1,5 +1,5 @@
 """
-Unit tests for URLScan.io Passive Enrichment Module (recon/urlscan_enrich.py).
+Unit tests for URLScan.io Passive Enrichment Module (recon/main_recon_modules/urlscan_enrich.py).
 
 Tests verify:
   - URL path parsing (_parse_url_path)
@@ -21,7 +21,7 @@ import unittest
 from unittest.mock import patch, MagicMock
 
 # Add recon dir to path
-_recon_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+_recon_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "main_recon_modules")
 sys.path.insert(0, _recon_dir)
 
 from urlscan_enrich import (

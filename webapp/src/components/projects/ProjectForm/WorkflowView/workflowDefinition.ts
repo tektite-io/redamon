@@ -43,7 +43,8 @@ export const WORKFLOW_TOOLS: WorkflowToolDef[] = [
   { id: 'JsRecon', label: 'JS Recon', enabledField: 'jsReconEnabled', group: 5.5, badge: 'both' },
 
   // Group 6 - Vulnerability Scanning
-  { id: 'Nuclei', label: 'Nuclei', enabledField: 'nucleiEnabled', group: 6, badge: 'active' },
+  { id: 'Nuclei',      label: 'Nuclei',       enabledField: 'nucleiEnabled',           group: 6, badge: 'active' },
+  { id: 'GraphqlScan', label: 'GraphQL Scan', enabledField: 'graphqlSecurityEnabled', group: 6, badge: 'active' },
 
   // Group 7 - CVE & MITRE
   { id: 'CveLookup', label: 'CVE Lookup', enabledField: 'cveLookupEnabled', group: 7 },

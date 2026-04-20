@@ -87,6 +87,15 @@ function makeReportData(overrides: Partial<ReportData> = {}): ReportData {
       byType: [],
       findings: [],
     },
+    graphqlScan: {
+      totalFindings: 0,
+      endpointsTested: 0,
+      introspectionEnabled: 0,
+      bySeverity: [],
+      byType: [],
+      endpoints: [],
+      findings: [],
+    },
     otx: {
       totalPulses: 0,
       totalMalware: 0,
@@ -224,6 +233,83 @@ describe('Conditional Section Rendering', () => {
   test('OTX section NOT rendered when no pulses or malware', () => {
     const html = generateReportHtml(makeReportData(), null)
     expect(html).not.toContain('id="otx"')
+  })
+
+  // ============================================================================
+  // GraphQL Security section (Phase 1 §7)
+  // ============================================================================
+  test('GraphQL section NOT rendered with zero endpoints and zero findings', () => {
+    const html = generateReportHtml(makeReportData(), null)
+    expect(html).not.toContain('id="graphql-scan"')
+    expect(html).not.toContain('GraphQL Security')
+  })
+
+  test('GraphQL section rendered when an endpoint was tested even without findings', () => {
+    const data = makeReportData({
+      graphqlScan: {
+        totalFindings: 0,
+        endpointsTested: 2,
+        introspectionEnabled: 1,
+        bySeverity: [],
+        byType: [],
+        endpoints: [
+          { url: 'https://api.target.com/graphql', introspectionEnabled: true, schemaExtracted: true, queriesCount: 23, mutationsCount: 8, subscriptionsCount: 2, schemaHash: 'sha256:abc1234567890def' },
+          { url: 'https://api.target.com/v1/graphql', introspectionEnabled: false, schemaExtracted: false, queriesCount: 0, mutationsCount: 0, subscriptionsCount: 0, schemaHash: null },
+        ],
+        findings: [],
+      },
+    })
+    const html = generateReportHtml(data, null)
+    expect(html).toContain('id="graphql-scan"')
+    expect(html).toContain('GraphQL Security')
+    expect(html).toContain('https://api.target.com/graphql')
+    expect(html).toContain('YES')      // introspection enabled badge
+  })
+
+  test('GraphQL section renders findings table when vulnerabilities present', () => {
+    const data = makeReportData({
+      graphqlScan: {
+        totalFindings: 2,
+        endpointsTested: 1,
+        introspectionEnabled: 1,
+        bySeverity: [{ severity: 'medium', count: 1 }, { severity: 'high', count: 1 }],
+        byType: [
+          { vulnerabilityType: 'graphql_introspection_enabled', count: 1 },
+          { vulnerabilityType: 'graphql_sensitive_data_exposure', count: 1 },
+        ],
+        endpoints: [
+          { url: 'https://api.target.com/graphql', introspectionEnabled: true, schemaExtracted: true, queriesCount: 23, mutationsCount: 8, subscriptionsCount: 0, schemaHash: 'sha256:abc' },
+        ],
+        findings: [
+          { endpoint: 'https://api.target.com/graphql', vulnerabilityType: 'graphql_introspection_enabled', severity: 'medium', source: 'graphql_scan', title: 'GraphQL Introspection Enabled', description: null, evidence: null, curlVerify: null },
+          { endpoint: 'https://api.target.com/graphql', vulnerabilityType: 'graphql_sensitive_data_exposure', severity: 'high', source: 'graphql_scan', title: 'Sensitive Fields Exposed', description: null, evidence: null, curlVerify: null },
+        ],
+      },
+    })
+    const html = generateReportHtml(data, null)
+    expect(html).toContain('id="graphql-scan"')
+    expect(html).toContain('graphql introspection enabled')
+    expect(html).toContain('graphql sensitive data exposure')
+    expect(html).toContain('GraphQL Introspection Enabled')
+    expect(html).toContain('Sensitive Fields Exposed')
+    // By Severity table should reflect counts
+    expect(html).toMatch(/<h3>By Severity<\/h3>[\s\S]*medium/)
+  })
+
+  test('GraphQL section does not render tested-endpoints table when none tested', () => {
+    const data = makeReportData({
+      graphqlScan: {
+        totalFindings: 0,
+        endpointsTested: 0,
+        introspectionEnabled: 0,
+        bySeverity: [],
+        byType: [],
+        endpoints: [],
+        findings: [],
+      },
+    })
+    const html = generateReportHtml(data, null)
+    expect(html).not.toContain('id="graphql-scan"')
   })
 
   test('OTX section rendered when pulses exist', () => {

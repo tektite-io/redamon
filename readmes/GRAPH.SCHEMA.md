@@ -507,7 +507,30 @@ These are linked to their parent BaseURL and contain discovered parameters.
         "http://testphp.vulnweb.com/index.php"
     ],
     form_input_names: ["username", "password"],  // Input field names from the form
-    form_count: 2                           // Number of pages containing this form
+    form_count: 2,                          // Number of pages containing this form
+
+    // GraphQL enrichment (set by graphql_scan when an endpoint is detected as GraphQL)
+    is_graphql: true,                                // True = endpoint is a GraphQL endpoint
+    graphql_introspection_enabled: true,             // True = __schema introspection query succeeded
+    graphql_schema_extracted: true,                  // True = full schema was successfully retrieved
+    graphql_schema_hash: "sha256:...",               // SHA-256 of normalized schema JSON (change detection)
+    graphql_schema_extracted_at: "2026-04-20T18:00:00+00:00", // ISO timestamp of last schema extraction
+    graphql_queries: ["me", "users", "orders"],      // Up to 50 query operation names
+    graphql_mutations: ["login", "createOrder"],     // Up to 50 mutation operation names
+    graphql_subscriptions: ["onMessage"],            // Up to 50 subscription operation names
+    graphql_queries_count: 23,                       // Total queries (not just the capped array)
+    graphql_mutations_count: 8,                      // Total mutations
+    graphql_subscriptions_count: 1,                  // Total subscriptions
+
+    // graphql-cop external scanner capability flags (set regardless of result -- captures
+    // negative signals like "GraphiQL exposed=false" as explicit state rather than silence)
+    graphql_cop_ran: true,                           // True if graphql-cop executed against this endpoint
+    graphql_cop_scanned_at: "2026-04-20T18:00:00+00:00", // ISO timestamp of last graphql-cop run
+    graphql_graphiql_exposed: false,                 // GraphiQL / Playground IDE detected
+    graphql_tracing_enabled: false,                  // Apollo tracing extension enabled
+    graphql_get_allowed: false,                      // GET-method queries accepted (CSRF vector)
+    graphql_field_suggestions_enabled: true,         // "Did you mean X?" errors leak schema fields
+    graphql_batching_enabled: false                  // Array-based batched queries accepted
 })
 ```
 
@@ -581,7 +604,7 @@ FOR (t:Technology) REQUIRE (t.name, t.version, t.user_id, t.project_id) IS UNIQU
 ---
 
 ### 10. Vulnerability
-Discovered vulnerabilities. Five sources produce Vulnerability nodes, each with different property sets.
+Discovered vulnerabilities. Six sources produce Vulnerability nodes, each with different property sets.
 
 **Common properties (all sources):**
 ```cypher
@@ -589,7 +612,7 @@ Discovered vulnerabilities. Five sources produce Vulnerability nodes, each with 
     id: String,                              // Unique identifier
     user_id: String,                         // Multi-tenant isolation
     project_id: String,                      // Multi-tenant isolation
-    source: "nuclei" | "gvm" | "security_check" | "netlas" | "nmap_nse",  // Scanner source
+    source: "nuclei" | "gvm" | "security_check" | "netlas" | "nmap_nse" | "graphql_scan",  // Scanner source
     name: String,                            // Vulnerability name
     description: String,                     // Description
     severity: "critical" | "high" | "medium" | "low" | "info",  // Always lowercase
@@ -724,6 +747,44 @@ Discovered vulnerabilities. Five sources produce Vulnerability nodes, each with 
     cve_id: "CVE-2011-2523",                    // CVE extracted from NSE output (regex CVE-\d{4}-\d+)
 })
 ```
+
+**GraphQL-specific properties (source = "graphql_scan"):**
+```cypher
+(:Vulnerability {
+    // Example -- introspection exposure
+    id: "graphql_graphql_introspection_enabled_https___api_target_com__graphql",
+    source: "graphql_scan",
+    vulnerability_type: "graphql_introspection_enabled",  // or "graphql_sensitive_data_exposure"
+    name: "GraphQL Introspection Enabled",
+    severity: "medium",                                   // graphql_introspection_enabled = medium; sensitive_data = medium/high
+    endpoint: "https://api.target.com/graphql",
+    title: "GraphQL Introspection Query Enabled",
+    description: "Introspection query returned full schema (23 queries, 8 mutations, 1 subscription)",
+    evidence: "{\"queries_count\":23,\"mutations_count\":8,\"subscriptions_count\":1,\"sensitive_fields\":[\"User.hashedPassword\",\"User.apiKey\"],\"schema_hash\":\"sha256:...\"}",
+    timestamp: datetime,
+})
+```
+
+Vulnerability types emitted by `graphql_scan`:
+- `graphql_introspection_enabled` — introspection query succeeded; schema extracted and stored on the Endpoint node (see the Endpoint block for `graphql_queries`, `graphql_mutations`, etc.)
+- `graphql_sensitive_data_exposure` — schema contains fields matching sensitive-keyword heuristic (`password`, `secret`, `token`, `apiKey`, `ssn`, `credit`, `cvv`, etc.). Created as a separate Vulnerability when the introspection-enabled finding has ≥1 sensitive field.
+
+Vulnerability types emitted by `graphql_cop` (external scanner, Phase 2):
+- `graphql_field_suggestions_enabled` (LOW) — "Did you mean X?" field suggestions leak schema even with introspection off
+- `graphql_ide_exposed` (LOW) — GraphiQL / GraphQL Playground UI reachable
+- `graphql_get_method_allowed` (MEDIUM) — GraphQL queries accepted via GET (CSRF vector)
+- `graphql_get_based_mutation` (MEDIUM) — mutations executable via GET
+- `graphql_post_csrf` (MEDIUM) — POST with `application/x-www-form-urlencoded` accepted (CSRF)
+- `graphql_tracing_enabled` (INFO) — Apollo tracing extension leaks execution metadata
+- `graphql_unhandled_error` (INFO) — exception stack traces returned to client
+- `graphql_alias_overloading` (HIGH, DoS) — 101-alias query accepted, rate-limit bypass
+- `graphql_batch_query_allowed` (HIGH, DoS) — 10+ queries batched in one POST
+- `graphql_directive_overloading` (HIGH, DoS) — many repeated directives accepted
+- `graphql_circular_introspection` (HIGH, DoS) — deep nested introspection triggers recursion
+
+Each `graphql_cop` Vulnerability's `evidence` field is a JSON blob containing `curl_verify` (a reproducer cURL command), `raw_severity` (graphql-cop's uppercase severity), and `graphql_cop_key` (internal test identifier).
+
+Deterministic ID pattern: `graphql_{vulnerability_type}_{baseurl}_{path}` (colons, slashes, dots replaced with `_`). Enables MERGE-based deduplication across re-scans AND across scanners — if `graphql_cop` and the native scanner both detect introspection, they merge into one Vulnerability node.
 
 **Constraints:**
 ```cypher

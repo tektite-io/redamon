@@ -1,5 +1,5 @@
 """
-Unit tests for VirusTotal enrichment (recon/virustotal_enrich.py).
+Unit tests for VirusTotal enrichment (recon/main_recon_modules/virustotal_enrich.py).
 
 Covers:
 - _extract_ips_from_recon: domain mode, subdomain IPs, ip_mode
@@ -19,7 +19,7 @@ from pathlib import Path
 from unittest.mock import MagicMock, call, patch
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(REPO_ROOT / "recon"))
+sys.path.insert(0, str(REPO_ROOT / "recon" / "main_recon_modules"))
 
 from virustotal_enrich import (
     _effective_key,

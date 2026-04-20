@@ -156,6 +156,7 @@ Cloud security engineers, red teams targeting cloud-hosted organizations, and se
     // --- Nuclei: cloud/misconfig focus ---
     nucleiEnabled: true,
     nucleiSeverity: ['critical', 'high', 'medium'],
+    nucleiTags: ['cloud', 'kubernetes', 'k8s', 'aws', 'gcp', 'azure', 'docker', 'misconfig', 'exposure'],
     nucleiRateLimit: 100,
     nucleiBulkSize: 25,
     nucleiConcurrency: 25,
@@ -244,5 +245,9 @@ Cloud security engineers, red teams targeting cloud-hosted organizations, and se
 
     uncoverEnabled: true,
     uncoverMaxResults: 500,
+
+    // --- GraphQL: explicit OFF so switching from a GraphQL-enabled preset resets cleanly ---
+    graphqlSecurityEnabled: false,
+    graphqlCopEnabled: false,
   },
 }

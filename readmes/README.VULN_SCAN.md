@@ -486,7 +486,7 @@ docker run --rm \
 
 ## Architecture & Flow
 
-> **Pipeline context:** Vulnerability scanning runs in **GROUP 6** of the parallelized recon pipeline, the final group. It depends on resource enumeration (GROUP 5) output. MITRE CWE/CAPEC enrichment runs automatically after Nuclei completes. Graph DB updates happen in a background thread.
+> **Pipeline context:** Vulnerability scanning runs in **GROUP 6 Phase A** of the parallelized recon pipeline — concurrently with the dedicated **GraphQL security scanner** (`recon/graphql_scan/`). Both scanners read `BaseURL` / `Endpoint` / `Technology` and emit `Vulnerability` nodes, but have zero data dependency on each other, so they run in parallel via `ThreadPoolExecutor` using `_isolated` wrappers that deep-copy `combined_result` to avoid races. Phase B (MITRE CWE/CAPEC enrichment) runs sequentially after Phase A completes — it depends on Nuclei's CVEs. Both phases depend on resource enumeration (GROUP 5) output. Graph DB updates happen in a background thread.
 
 ### Execution Flow
 

@@ -75,6 +75,10 @@ describe('PARTIAL_RECON_SUPPORTED_TOOLS', () => {
     expect(PARTIAL_RECON_SUPPORTED_TOOLS.has('Nuclei')).toBe(true)
   })
 
+  test('contains GraphqlScan (Phase 1 §9.5)', () => {
+    expect(PARTIAL_RECON_SUPPORTED_TOOLS.has('GraphqlScan')).toBe(true)
+  })
+
   test('does not contain unsupported tools', () => {
     expect(PARTIAL_RECON_SUPPORTED_TOOLS.has('GVM')).toBe(false)
   })
@@ -155,6 +159,15 @@ describe('PARTIAL_RECON_PHASE_MAP', () => {
   test('has Nuclei phases', () => {
     expect(PARTIAL_RECON_PHASE_MAP['Nuclei']).toHaveLength(1)
     expect(PARTIAL_RECON_PHASE_MAP['Nuclei'][0]).toBe('Vulnerability Scanning')
+  })
+
+  test('has GraphqlScan phases (Phase 1 §9.5)', () => {
+    const phases = PARTIAL_RECON_PHASE_MAP['GraphqlScan']
+    expect(phases).toBeDefined()
+    expect(phases.length).toBeGreaterThan(0)
+    expect(phases).toContain('Endpoint Discovery')
+    expect(phases).toContain('Introspection Testing')
+    expect(phases).toContain('Vulnerability Detection')
   })
 
   test('each supported tool has a phase entry', () => {

@@ -141,6 +141,7 @@ IMAGES=(
     "frost19k/puredns:latest"
     "jauderho/hakrawler:latest"
     "projectdiscovery/uncover:latest"
+    "dolevf/graphql-cop:1.14"
 )
 
 for IMAGE in "${IMAGES[@]}"; do

@@ -172,6 +172,10 @@ Pentesters and bug bounty hunters focused on injection vulnerabilities. Ideal fo
     nucleiInteractsh: true,
     nucleiTags: ['sqli', 'xss', 'ssrf', 'lfi', 'rfi', 'ssti', 'injection'],
 
+    // --- GraphQL Security: parameter/mutation testing fits this preset ---
+    graphqlSecurityEnabled: true,
+    graphqlCopEnabled: true,
+
     // --- DISABLE CVE lookup & MITRE ---
     cveLookupEnabled: false,
     mitreEnabled: false,

@@ -212,6 +212,10 @@ Pentesters with full authorization on an engagement where stealth is irrelevant.
     nucleiScanAllIps: true,
     nucleiInteractsh: true,
 
+    // --- GraphQL Security: full active coverage ---
+    graphqlSecurityEnabled: true,
+    graphqlCopEnabled: true,
+
     // --- CVE Lookup: enabled ---
     cveLookupEnabled: true,
     cveLookupMaxCves: 30,

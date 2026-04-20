@@ -567,15 +567,17 @@ describe('Full Pipeline - Passive Only preset', () => {
     expect(preset!.id).toBe('full-passive-scan')
   })
 
-  test('includes domain_discovery, port_scan, and resource_enum modules only', () => {
+  test('includes domain_discovery, port_scan, resource_enum, vuln_scan (Nuclei OFF)', () => {
+    // vuln_scan is the gate that lets CVE lookup + MITRE enrichment execute;
+    // Nuclei itself is disabled below so nothing active is sent to the target.
     const modules = FULL_PASSIVE_SCAN.parameters.scanModules!
     expect(modules).toContain('domain_discovery')
     expect(modules).toContain('port_scan')
     expect(modules).toContain('resource_enum')
+    expect(modules).toContain('vuln_scan')
     expect(modules).not.toContain('http_probe')
-    expect(modules).not.toContain('vuln_scan')
     expect(modules).not.toContain('js_recon')
-    expect(modules).toHaveLength(3)
+    expect(modules).toHaveLength(4)
   })
 
   // --- CORE INVARIANT: no tool that sends packets to the target ---
@@ -1348,15 +1350,15 @@ describe('API Security Audit preset', () => {
     expect(getPresetById('api-security')).toBeDefined()
   })
 
-  test('includes 4 modules, no port_scan or js_recon', () => {
+  test('includes 5 modules with port_scan (for non-standard API ports)', () => {
     const modules = API_SECURITY.parameters.scanModules!
     expect(modules).toContain('domain_discovery')
+    expect(modules).toContain('port_scan')
     expect(modules).toContain('http_probe')
     expect(modules).toContain('resource_enum')
     expect(modules).toContain('vuln_scan')
-    expect(modules).not.toContain('port_scan')
     expect(modules).not.toContain('js_recon')
-    expect(modules).toHaveLength(4)
+    expect(modules).toHaveLength(5)
   })
 
   // --- API discovery triad: Kiterunner + Arjun + ffuf ---
@@ -1423,7 +1425,8 @@ describe('API Security Audit preset', () => {
   // --- Non-API tools disabled ---
   test('disables tools not relevant to API testing', () => {
     const p = API_SECURITY.parameters
-    expect(p.naabuEnabled).toBe(false)
+    // Naabu is ON with scoped API ports (Apollo/Hasura/Node/Flask) so httpx sees non-standard ports
+    expect(p.naabuEnabled).toBe(true)
     expect(p.masscanEnabled).toBe(false)
     expect(p.nmapEnabled).toBe(false)
     expect(p.hakrawlerEnabled).toBe(false)
@@ -1436,6 +1439,15 @@ describe('API Security Audit preset', () => {
     expect(p.cveLookupEnabled).toBe(false)
     expect(p.mitreEnabled).toBe(false)
     expect(p.osintEnrichmentEnabled).toBe(false)
+  })
+
+  test('Naabu scoped to common API ports (4000/3000/8080/etc.)', () => {
+    const p = API_SECURITY.parameters as Record<string, unknown>
+    const ports = p.naabuCustomPorts as string
+    expect(ports).toMatch(/4000/)
+    expect(ports).toMatch(/3000/)
+    expect(ports).toMatch(/8080/)
+    expect(ports).toMatch(/8443/)
   })
 
   // --- Safety ---
@@ -1473,15 +1485,18 @@ describe('Infrastructure Mapper preset', () => {
     expect(getPresetById('infrastructure-mapper')).toBeDefined()
   })
 
-  test('includes domain_discovery, port_scan, and http_probe only', () => {
+  test('includes domain_discovery, port_scan, http_probe, vuln_scan (Nuclei OFF)', () => {
+    // vuln_scan is the gate that lets CVE lookup + MITRE enrichment + 27
+    // security checks execute. Nuclei itself is disabled (this preset maps
+    // infrastructure, not vuln-tests it).
     const modules = INFRASTRUCTURE_MAPPER.parameters.scanModules!
     expect(modules).toContain('domain_discovery')
     expect(modules).toContain('port_scan')
     expect(modules).toContain('http_probe')
+    expect(modules).toContain('vuln_scan')
     expect(modules).not.toContain('resource_enum')
-    expect(modules).not.toContain('vuln_scan')
     expect(modules).not.toContain('js_recon')
-    expect(modules).toHaveLength(3)
+    expect(modules).toHaveLength(4)
   })
 
   // --- All 3 port scanners enabled ---
@@ -1617,15 +1632,17 @@ describe('OSINT Investigator preset', () => {
     expect(getPresetById('osint-investigator')).toBeDefined()
   })
 
-  test('includes domain_discovery, port_scan, and resource_enum only', () => {
+  test('includes domain_discovery, port_scan, resource_enum, vuln_scan (Nuclei OFF)', () => {
+    // vuln_scan is the gate that lets CVE lookup + MITRE enrichment execute;
+    // Nuclei itself is disabled below so nothing active is sent to the target.
     const modules = OSINT_INVESTIGATOR.parameters.scanModules!
     expect(modules).toContain('domain_discovery')
     expect(modules).toContain('port_scan')
     expect(modules).toContain('resource_enum')
+    expect(modules).toContain('vuln_scan')
     expect(modules).not.toContain('http_probe')
-    expect(modules).not.toContain('vuln_scan')
     expect(modules).not.toContain('js_recon')
-    expect(modules).toHaveLength(3)
+    expect(modules).toHaveLength(4)
   })
 
   // --- All 10 OSINT providers enabled at max ---
@@ -2137,13 +2154,16 @@ describe('Subdomain Takeover Hunter preset', () => {
     expect(preset!.id).toBe('subdomain-takeover')
   })
 
-  test('scan modules include domain_discovery, http_probe, vuln_scan', () => {
+  test('scan modules include domain_discovery, http_probe, resource_enum, vuln_scan', () => {
+    // resource_enum is required so GAU (passive historical subdomain data) runs.
+    // All other resource_enum tools (Katana, Hakrawler, ffuf, Kiterunner, Arjun,
+    // jsluice, ParamSpider) are explicitly disabled below -- only GAU fires.
     const modules = SUBDOMAIN_TAKEOVER.parameters.scanModules!
     expect(modules).toContain('domain_discovery')
     expect(modules).toContain('http_probe')
+    expect(modules).toContain('resource_enum')
     expect(modules).toContain('vuln_scan')
     expect(modules).not.toContain('port_scan')
-    expect(modules).not.toContain('resource_enum')
     expect(modules).not.toContain('js_recon')
   })
 
@@ -3016,13 +3036,16 @@ describe('Network Perimeter - Large Scale preset', () => {
     expect(preset!.name).toBe('Network Perimeter - Large Scale')
   })
 
-  test('scan modules include domain_discovery, port_scan, http_probe only', () => {
+  test('scan modules include domain_discovery, port_scan, http_probe, vuln_scan (Nuclei OFF)', () => {
+    // vuln_scan is the gate that lets CVE lookup + MITRE enrichment + security
+    // checks execute. Nuclei itself is disabled (this preset maps infrastructure,
+    // not vuln-tests it).
     const modules = LARGE_NETWORK.parameters.scanModules!
     expect(modules).toContain('domain_discovery')
     expect(modules).toContain('port_scan')
     expect(modules).toContain('http_probe')
+    expect(modules).toContain('vuln_scan')
     expect(modules).not.toContain('resource_enum')
-    expect(modules).not.toContain('vuln_scan')
     expect(modules).not.toContain('js_recon')
   })
 
@@ -3156,9 +3179,11 @@ describe('DNS & Email Security preset', () => {
     expect(preset!.name).toBe('DNS & Email Security')
   })
 
-  test('scanModules contains only domain_discovery', () => {
+  test('scanModules contains domain_discovery and vuln_scan (Nuclei OFF)', () => {
+    // vuln_scan is the gate that lets SPF/DMARC/DNSSEC/zone-transfer/SMTP security
+    // checks execute. Nuclei itself is disabled below so no active vuln scanning fires.
     const modules = DNS_EMAIL_SECURITY.parameters.scanModules!
-    expect(modules).toEqual(['domain_discovery'])
+    expect(modules).toEqual(['domain_discovery', 'vuln_scan'])
   })
 
   test('all subdomain tools enabled at 10000 max, amass active+brute, bruteforce enabled', () => {
@@ -3348,8 +3373,8 @@ describe('Preset merge logic', () => {
 // ============================================================
 
 describe('Preset system integrity', () => {
-  test('registry contains exactly 21 presets', () => {
-    expect(RECON_PRESETS).toHaveLength(21)
+  test('registry contains exactly 22 presets', () => {
+    expect(RECON_PRESETS).toHaveLength(22)
   })
 
   test('every preset has all required fields with correct types', () => {
@@ -3464,5 +3489,281 @@ describe('Preset system integrity', () => {
         expect(preset.image).toMatch(/^\/preset-[\w-]+\.svg$/)
       }
     }
+  })
+})
+
+// ============================================================
+// GraphQL Security Scanner preset decisions (Phase 1 §8.3)
+// ============================================================
+
+describe('GraphQL Security Scanner preset coverage', () => {
+  const get = (id: string) => RECON_PRESETS.find(p => p.id === id)
+
+  // GraphQL enables only when: preset mission needs it AND crawlers are ON
+  // (Katana/Hakrawler provide Endpoints for GraphQL discovery to enrich).
+  const EXPECTED_ENABLED = [
+    'api-security', 'web-app-pentester', 'bug-bounty-deep',
+    'full-active-scan', 'full-maximum-scan',
+    'parameter-injection',
+    'secret-miner',         // JS crawl finds /graphql endpoints embedded in SPA bundles
+  ]
+
+  // All 14 "OFF" presets MUST explicitly set graphqlSecurityEnabled: false (not just
+  // omit it). Reason: preset-apply is a shallow merge ({...form, ...preset.parameters}),
+  // so switching from a GraphQL-enabled preset to one that merely OMITS the key leaves
+  // the toggle stuck ON. Explicit false is required for correct preset transitions.
+  const EXPLICITLY_DISABLED = [
+    'bug-bounty-quick', 'red-team-operator', 'stealth-recon',
+    'compliance-audit', 'cve-hunter',
+    'cloud-exposure', 'dns-email-security', 'full-passive-scan',
+    'infrastructure-mapper', 'large-network', 'osint-investigator',
+    'subdomain-takeover', 'secret-hunter',
+    'directory-discovery',  // descriptions promise "no vuln scanning" -- GraphQL scan is vuln scanning
+  ]
+
+  test.each(EXPECTED_ENABLED)('%s enables graphqlSecurityEnabled', (id) => {
+    const preset = get(id)
+    expect(preset).toBeDefined()
+    const p = preset!.parameters as Record<string, unknown>
+    expect(p.graphqlSecurityEnabled).toBe(true)
+  })
+
+  test.each(EXPLICITLY_DISABLED)('%s explicitly sets graphqlSecurityEnabled: false (for clean switching)', (id) => {
+    const preset = get(id)
+    expect(preset).toBeDefined()
+    const p = preset!.parameters as Record<string, unknown>
+    // Must be explicit false, NOT undefined -- required so shallow-merge resets the
+    // toggle when switching from a GraphQL-enabled preset.
+    expect(p.graphqlSecurityEnabled).toBe(false)
+    expect(p.graphqlCopEnabled).toBe(false)
+  })
+
+  test('switching from graphql-recon to a disabled preset resets graphqlSecurityEnabled', () => {
+    const graphqlOn = RECON_PRESETS.find(p => p.id === 'graphql-recon')!.parameters
+    const form = { name: 'test', ...graphqlOn } as Record<string, unknown>
+    expect(form.graphqlSecurityEnabled).toBe(true)
+
+    for (const id of EXPLICITLY_DISABLED) {
+      const disabledParams = RECON_PRESETS.find(p => p.id === id)!.parameters
+      const merged = { ...form, ...disabledParams } as Record<string, unknown>
+      expect(merged.graphqlSecurityEnabled).toBe(false)
+      expect(merged.graphqlCopEnabled).toBe(false)
+    }
+  })
+
+  test('secret-miner enables graphql with introspection + read-only checks', () => {
+    const p = get('secret-miner')!.parameters as Record<string, unknown>
+    expect(p.graphqlSecurityEnabled).toBe(true)
+    expect(p.graphqlIntrospectionTest).toBe(true)
+  })
+
+  test('full-maximum-scan turns everything on with elevated mutation cap', () => {
+    const p = get('full-maximum-scan')!.parameters as Record<string, unknown>
+  })
+})
+
+// ============================================================
+// graphql-cop preset coverage (Phase 2 §17.7)
+// ============================================================
+
+describe('graphql-cop preset coverage', () => {
+  const get = (id: string) => RECON_PRESETS.find(p => p.id === id)
+
+  // graphql-cop enables 1:1 with graphqlSecurityEnabled
+  const EXPECTED_COP_ENABLED = [
+    'api-security', 'web-app-pentester', 'bug-bounty-deep',
+    'full-active-scan', 'full-maximum-scan',
+    'parameter-injection',
+    'secret-miner',
+  ]
+
+  test.each(EXPECTED_COP_ENABLED)('%s enables graphqlCopEnabled', (id) => {
+    const preset = get(id)
+    expect(preset).toBeDefined()
+    const p = preset!.parameters as Record<string, unknown>
+    expect(p.graphqlCopEnabled).toBe(true)
+  })
+
+  test('full-maximum-scan enables graphql-cop introspection for cross-validation', () => {
+    const p = get('full-maximum-scan')!.parameters as Record<string, unknown>
+    expect(p.graphqlCopEnabled).toBe(true)
+    expect(p.graphqlCopTestIntrospection).toBe(true)
+  })
+
+  test('bug-bounty-deep enables graphql-cop with DoS probes OFF (avoid-IP-ban mission)', () => {
+    // The preset promises "balanced to avoid IP bans" and "moderate concurrency to
+    // stay under WAF thresholds" -- incompatible with graphql-cop's four DoS probes
+    // which default-on.
+    const p = get('bug-bounty-deep')!.parameters as Record<string, unknown>
+    expect(p.graphqlCopEnabled).toBe(true)
+    expect(p.graphqlCopTestAliasOverloading).toBe(false)
+    expect(p.graphqlCopTestBatchQuery).toBe(false)
+    expect(p.graphqlCopTestDirectiveOverloading).toBe(false)
+    expect(p.graphqlCopTestCircularIntrospection).toBe(false)
+  })
+
+  test('secret-miner skips DoS probes (read-only focus)', () => {
+    const p = get('secret-miner')!.parameters as Record<string, unknown>
+    expect(p.graphqlCopTestAliasOverloading).toBe(false)
+    expect(p.graphqlCopTestBatchQuery).toBe(false)
+    expect(p.graphqlCopTestDirectiveOverloading).toBe(false)
+    expect(p.graphqlCopTestCircularIntrospection).toBe(false)
+  })
+})
+
+// ============================================================
+// GraphQL Recon preset (dedicated GraphQL-focused preset)
+// ============================================================
+
+describe('GraphQL Recon preset', () => {
+  const preset = RECON_PRESETS.find(p => p.id === 'graphql-recon')
+
+  test('is registered in RECON_PRESETS', () => {
+    expect(preset).toBeDefined()
+    expect(preset!.id).toBe('graphql-recon')
+    expect(preset!.name).toBe('GraphQL Recon')
+  })
+
+  test('has a graphql-themed SVG image', () => {
+    expect(preset!.image).toBe('/preset-graphql.svg')
+  })
+
+  test('has substantive descriptions', () => {
+    expect(preset!.shortDescription.length).toBeGreaterThan(50)
+    expect(preset!.fullDescription.length).toBeGreaterThan(500)
+    expect(preset!.fullDescription).toContain('GraphQL')
+    expect(preset!.fullDescription).toContain('introspection')
+  })
+
+  test('enables both native GraphQL scanner AND graphql-cop', () => {
+    const p = preset!.parameters as Record<string, unknown>
+    expect(p.graphqlSecurityEnabled).toBe(true)
+    expect(p.graphqlCopEnabled).toBe(true)
+  })
+
+  test('native scanner runs with full coverage (mutations + proxy + safe mode off)', () => {
+    const p = preset!.parameters as Record<string, unknown>
+    expect(p.graphqlIntrospectionTest).toBe(true)
+  })
+
+  test('graphql-cop runs with cross-validation (introspection ON) + all DoS probes', () => {
+    const p = preset!.parameters as Record<string, unknown>
+    expect(p.graphqlCopTestIntrospection).toBe(true)  // cross-validate with native
+    expect(p.graphqlCopTestAliasOverloading).toBe(true)
+    expect(p.graphqlCopTestBatchQuery).toBe(true)
+    expect(p.graphqlCopTestDirectiveOverloading).toBe(true)
+    expect(p.graphqlCopTestCircularIntrospection).toBe(true)
+  })
+
+  test('enables JS Recon for SPA GraphQL endpoint extraction', () => {
+    const p = preset!.parameters as Record<string, unknown>
+    expect(p.jsReconEnabled).toBe(true)
+    expect(p.jsReconExtractEndpoints).toBe(true)
+    expect(p.jsReconSourceMaps).toBe(true)
+    expect(p.jsReconFrameworkDetect).toBe(true)
+  })
+
+  test('enables Naabu with scoped API ports (non-standard GraphQL ports like 4000/3000/8080)', () => {
+    const p = preset!.parameters as Record<string, unknown>
+    expect(p.naabuEnabled).toBe(true)
+    // Must include Apollo (4000), Hasura (8080), Flask (5000), DVGA (5013), alt-HTTPS (8443)
+    const ports = p.naabuCustomPorts as string
+    expect(ports).toMatch(/4000/)
+    expect(ports).toMatch(/5013/)
+    expect(ports).toMatch(/8080/)
+    expect(ports).toMatch(/8443/)
+    // Heavy scanners stay off
+    expect(p.masscanEnabled).toBe(false)
+    expect(p.nmapEnabled).toBe(false)
+  })
+
+  test('scanModules includes port_scan (required for Naabu to run)', () => {
+    const p = preset!.parameters as Record<string, unknown>
+    expect(p.scanModules).toContain('port_scan')
+  })
+
+  test('enables MITRE for CVE-to-ATT&CK mapping of Nuclei findings', () => {
+    const p = preset!.parameters as Record<string, unknown>
+    expect(p.mitreEnabled).toBe(true)
+  })
+
+  test('GAU has verify + method detection + dead-endpoint filtering enabled', () => {
+    const p = preset!.parameters as Record<string, unknown>
+    expect(p.gauVerifyUrls).toBe(true)
+    expect(p.gauDetectMethods).toBe(true)
+    expect(p.gauFilterDeadEndpoints).toBe(true)
+  })
+
+  test('Wappalyzer enabled (detects Apollo/Hasura/graphql-yoga for better targeting)', () => {
+    const p = preset!.parameters as Record<string, unknown>
+    expect(p.wappalyzerEnabled).toBe(true)
+  })
+
+  test('Knockpy disabled (brute-force subdomain, marginal GraphQL ROI)', () => {
+    const p = preset!.parameters as Record<string, unknown>
+    expect(p.knockpyReconEnabled).toBe(false)
+  })
+
+  test('Nuclei tags include csrf + injection beyond framework CVEs', () => {
+    const p = preset!.parameters as Record<string, unknown>
+    const tags = p.nucleiTags as string[]
+    expect(tags).toContain('graphql')
+    expect(tags).toContain('apollo')
+    expect(tags).toContain('hasura')
+    expect(tags).toContain('csrf')
+    expect(tags).toContain('injection')
+  })
+
+  test('disables Kiterunner and ffuf (GraphQL paths are known patterns)', () => {
+    const p = preset!.parameters as Record<string, unknown>
+    expect(p.kiterunnerEnabled).toBe(false)
+    expect(p.ffufEnabled).toBe(false)
+  })
+
+  test('enables crawlers + historical URL sources (find JS-referenced endpoints)', () => {
+    const p = preset!.parameters as Record<string, unknown>
+    expect(p.katanaEnabled).toBe(true)
+    expect(p.hakrawlerEnabled).toBe(true)
+    expect(p.gauEnabled).toBe(true)
+    expect(p.paramspiderEnabled).toBe(true)
+    expect(p.jsluiceEnabled).toBe(true)
+  })
+
+  test('disables all OSINT enrichment (not GraphQL-relevant)', () => {
+    const p = preset!.parameters as Record<string, unknown>
+    expect(p.osintEnrichmentEnabled).toBe(false)
+    expect(p.shodanEnabled).toBe(false)
+    expect(p.urlscanEnabled).toBe(false)
+    expect(p.otxEnabled).toBe(false)
+    expect(p.censysEnabled).toBe(false)
+  })
+
+  test('Nuclei uses GraphQL-specific tags', () => {
+    const p = preset!.parameters as Record<string, unknown>
+    expect(p.nucleiEnabled).toBe(true)
+    const tags = p.nucleiTags as string[]
+    expect(tags).toContain('graphql')
+    expect(tags).toContain('apollo')
+    expect(tags).toContain('hasura')
+  })
+
+  test('roundtrips through Zod schema without losing keys', async () => {
+    const { reconPresetSchema } = await import('../recon-preset-schema')
+    const result = reconPresetSchema.safeParse(preset!.parameters)
+    expect(result.success).toBe(true)
+    // Critical GraphQL keys must survive validation
+    expect(result.data!.graphqlSecurityEnabled).toBe(true)
+    expect(result.data!.graphqlCopEnabled).toBe(true)
+    expect(result.data!.jsReconEnabled).toBe(true)
+  })
+
+  test('has unique ID (not colliding with existing presets)', () => {
+    const ids = RECON_PRESETS.map(p => p.id)
+    const uniqueIds = new Set(ids)
+    expect(uniqueIds.size).toBe(ids.length)
+  })
+
+  test('is exactly the 22nd preset (added to registry)', () => {
+    expect(RECON_PRESETS.length).toBe(22)
   })
 })

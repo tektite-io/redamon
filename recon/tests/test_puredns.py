@@ -44,12 +44,12 @@ def cleanup_test_env():
 # ---------------------------------------------------------------------------
 def test_disabled_returns_input():
     """When PUREDNS_ENABLED=False, return subdomains unchanged without calling Docker."""
-    from recon.domain_recon import run_puredns_resolve
+    from recon.main_recon_modules.domain_recon import run_puredns_resolve
 
     subs = ["a.example.com", "b.example.com"]
     settings = {"PUREDNS_ENABLED": False}
 
-    with mock.patch("recon.domain_recon.subprocess.run") as mock_run:
+    with mock.patch("recon.main_recon_modules.domain_recon.subprocess.run") as mock_run:
         result = run_puredns_resolve(subs, "example.com", settings)
         mock_run.assert_not_called()
 
@@ -62,9 +62,9 @@ def test_disabled_returns_input():
 # ---------------------------------------------------------------------------
 def test_empty_list_returns_empty():
     """Empty subdomain list should return immediately without Docker call."""
-    from recon.domain_recon import run_puredns_resolve
+    from recon.main_recon_modules.domain_recon import run_puredns_resolve
 
-    with mock.patch("recon.domain_recon.subprocess.run") as mock_run:
+    with mock.patch("recon.main_recon_modules.domain_recon.subprocess.run") as mock_run:
         result = run_puredns_resolve([], "example.com", {"PUREDNS_ENABLED": True})
         mock_run.assert_not_called()
 
@@ -77,7 +77,7 @@ def test_empty_list_returns_empty():
 # ---------------------------------------------------------------------------
 def test_none_settings_defaults_enabled():
     """When settings is None, PUREDNS_ENABLED defaults to True (tool runs)."""
-    from recon.domain_recon import run_puredns_resolve
+    from recon.main_recon_modules.domain_recon import run_puredns_resolve
 
     subs = ["a.example.com"]
     data_dir, resolver_dir = setup_test_env()
@@ -85,8 +85,8 @@ def test_none_settings_defaults_enabled():
     def fake_run(cmd, **kwargs):
         return mock.MagicMock(returncode=1, stderr="test mode")
 
-    with mock.patch("recon.domain_recon.subprocess.run", side_effect=fake_run) as mock_run, \
-         mock.patch("recon.domain_recon.Path") as MockPath:
+    with mock.patch("recon.main_recon_modules.domain_recon.subprocess.run", side_effect=fake_run) as mock_run, \
+         mock.patch("recon.main_recon_modules.domain_recon.Path") as MockPath:
 
         # We need Path to work for file ops but redirect hardcoded paths
         real_path = Path
@@ -117,7 +117,7 @@ def test_none_settings_defaults_enabled():
 # ---------------------------------------------------------------------------
 def test_successful_filtering():
     """Successful puredns run: writes input, reads filtered output."""
-    from recon.domain_recon import run_puredns_resolve
+    from recon.main_recon_modules.domain_recon import run_puredns_resolve
 
     subs = ["a.example.com", "b.example.com", "wildcard.example.com"]
     settings = {"PUREDNS_ENABLED": True}
@@ -138,7 +138,7 @@ def test_successful_filtering():
         output_file.write_text("a.example.com\nb.example.com\n")
         return mock.MagicMock(returncode=0, stderr="")
 
-    with mock.patch("recon.domain_recon.subprocess.run", side_effect=fake_puredns):
+    with mock.patch("recon.main_recon_modules.domain_recon.subprocess.run", side_effect=fake_puredns):
         result = run_puredns_resolve(subs, "example.com", settings)
 
     assert "a.example.com" in result
@@ -153,7 +153,7 @@ def test_successful_filtering():
 # ---------------------------------------------------------------------------
 def test_command_construction_all_flags():
     """All optional flags should be included in Docker command when set."""
-    from recon.domain_recon import run_puredns_resolve
+    from recon.main_recon_modules.domain_recon import run_puredns_resolve
 
     subs = ["a.example.com"]
     settings = {
@@ -178,7 +178,7 @@ def test_command_construction_all_flags():
     if not resolver_shared.exists():
         resolver_shared.write_text("8.8.8.8\n")
 
-    with mock.patch("recon.domain_recon.subprocess.run", side_effect=capture_run):
+    with mock.patch("recon.main_recon_modules.domain_recon.subprocess.run", side_effect=capture_run):
         run_puredns_resolve(subs, "example.com", settings)
 
     assert captured_cmd is not None, "subprocess.run was not called"
@@ -211,7 +211,7 @@ def test_command_construction_all_flags():
 # ---------------------------------------------------------------------------
 def test_command_construction_defaults():
     """When threads=0, rate_limit=0, etc., optional flags should NOT be added."""
-    from recon.domain_recon import run_puredns_resolve
+    from recon.main_recon_modules.domain_recon import run_puredns_resolve
 
     subs = ["a.example.com"]
     settings = {
@@ -229,7 +229,7 @@ def test_command_construction_defaults():
         captured_cmd = cmd
         return mock.MagicMock(returncode=0, stderr="")
 
-    with mock.patch("recon.domain_recon.subprocess.run", side_effect=capture_run):
+    with mock.patch("recon.main_recon_modules.domain_recon.subprocess.run", side_effect=capture_run):
         run_puredns_resolve(subs, "example.com", settings)
 
     assert captured_cmd is not None
@@ -253,12 +253,12 @@ def test_command_construction_defaults():
 # ---------------------------------------------------------------------------
 def test_timeout_returns_unfiltered():
     """On subprocess timeout, return original list unchanged."""
-    from recon.domain_recon import run_puredns_resolve
+    from recon.main_recon_modules.domain_recon import run_puredns_resolve
 
     subs = ["a.example.com", "b.example.com"]
     settings = {"PUREDNS_ENABLED": True}
 
-    with mock.patch("recon.domain_recon.subprocess.run",
+    with mock.patch("recon.main_recon_modules.domain_recon.subprocess.run",
                     side_effect=subprocess.TimeoutExpired(cmd="docker", timeout=600)):
         result = run_puredns_resolve(subs, "example.com", settings)
 
@@ -275,12 +275,12 @@ def test_timeout_returns_unfiltered():
 # ---------------------------------------------------------------------------
 def test_docker_not_found_returns_unfiltered():
     """When Docker binary is missing (FileNotFoundError), return original list."""
-    from recon.domain_recon import run_puredns_resolve
+    from recon.main_recon_modules.domain_recon import run_puredns_resolve
 
     subs = ["a.example.com"]
     settings = {"PUREDNS_ENABLED": True}
 
-    with mock.patch("recon.domain_recon.subprocess.run",
+    with mock.patch("recon.main_recon_modules.domain_recon.subprocess.run",
                     side_effect=FileNotFoundError("docker")):
         result = run_puredns_resolve(subs, "example.com", settings)
 
@@ -297,7 +297,7 @@ def test_docker_not_found_returns_unfiltered():
 # ---------------------------------------------------------------------------
 def test_no_output_file_returns_unfiltered():
     """When puredns runs but produces no output file, return original list."""
-    from recon.domain_recon import run_puredns_resolve
+    from recon.main_recon_modules.domain_recon import run_puredns_resolve
 
     subs = ["a.example.com"]
     settings = {"PUREDNS_ENABLED": True}
@@ -306,7 +306,7 @@ def test_no_output_file_returns_unfiltered():
         # Don't create any output file
         return mock.MagicMock(returncode=1, stderr="some error")
 
-    with mock.patch("recon.domain_recon.subprocess.run", side_effect=fake_run):
+    with mock.patch("recon.main_recon_modules.domain_recon.subprocess.run", side_effect=fake_run):
         result = run_puredns_resolve(subs, "example.com", settings)
 
     assert result == subs
@@ -406,7 +406,7 @@ def test_fetch_mapping_completeness():
 # ---------------------------------------------------------------------------
 def test_input_file_content():
     """Subdomain list should be written one-per-line to the input file."""
-    from recon.domain_recon import run_puredns_resolve
+    from recon.main_recon_modules.domain_recon import run_puredns_resolve
 
     subs = ["z.example.com", "a.example.com", "m.example.com"]
     settings = {"PUREDNS_ENABLED": True}
@@ -420,7 +420,7 @@ def test_input_file_content():
             written_content = input_path.read_text()
         return mock.MagicMock(returncode=0, stderr="")
 
-    with mock.patch("recon.domain_recon.subprocess.run", side_effect=capture_run):
+    with mock.patch("recon.main_recon_modules.domain_recon.subprocess.run", side_effect=capture_run):
         run_puredns_resolve(subs, "example.com", settings)
 
     assert written_content is not None, "Input file was not created"

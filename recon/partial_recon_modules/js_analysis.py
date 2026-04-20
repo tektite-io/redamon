@@ -23,7 +23,7 @@ def run_jsrecon(config: dict) -> None:
     from graph and/or user-provided URLs, runs JS Recon analysis, merges
     results into the graph via update_graph_from_js_recon.
     """
-    from recon.js_recon import run_js_recon
+    from recon.main_recon_modules.js_recon import run_js_recon
     from recon.project_settings import get_settings
 
     domain = config["domain"]

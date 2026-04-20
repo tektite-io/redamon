@@ -194,6 +194,10 @@ Red team operators running authorized engagements where some active probing is a
     nucleiSystemResolvers: true,
     nucleiExcludeTags: ['dos', 'fuzz', 'intrusive'],
 
+    // --- GraphQL: OFF by default. Red team prioritises stealth; pattern-based
+    //     GraphQL discovery generates 4-12 extra 404s per BaseURL (IDS/WAF signal).
+    //     Enable per-project only when GraphQL is a known target. ---
+
     // --- CVE lookup ---
     cveLookupEnabled: true,
     cveLookupMaxCves: 20,
@@ -226,5 +230,9 @@ Red team operators running authorized engagements where some active probing is a
     zoomEyeEnabled: false,
     criminalIpEnabled: false,
     uncoverEnabled: false,
+
+    // --- GraphQL: explicit OFF so switching from a GraphQL-enabled preset resets cleanly ---
+    graphqlSecurityEnabled: false,
+    graphqlCopEnabled: false,
   },
 }

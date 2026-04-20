@@ -1114,6 +1114,24 @@ Each node has `user_id` and `project_id` properties for tenant isolation (handle
 - path (string): "/api/v1/users"
 - method (string): "GET", "POST"
 - status_code (integer)
+- GraphQL enrichment (set by graphql_scan when endpoint is a GraphQL endpoint):
+  - is_graphql (boolean): True if the endpoint is a GraphQL endpoint
+  - graphql_introspection_enabled (boolean): True if __schema introspection query succeeded
+  - graphql_schema_extracted (boolean): True if full schema was retrieved
+  - graphql_schema_hash (string): SHA-256 of normalized schema JSON (change detection)
+  - graphql_schema_extracted_at (datetime): ISO timestamp of schema extraction
+  - graphql_queries (string[]): Up to 50 query operation names
+  - graphql_mutations (string[]): Up to 50 mutation operation names
+  - graphql_subscriptions (string[]): Up to 50 subscription operation names
+  - graphql_queries_count, graphql_mutations_count, graphql_subscriptions_count (integer): Full counts
+- graphql-cop capability flags (set by the external scanner, Phase 2):
+  - graphql_cop_ran (boolean): True if graphql-cop executed against this endpoint
+  - graphql_cop_scanned_at (datetime): ISO timestamp of last graphql-cop run
+  - graphql_graphiql_exposed (boolean): GraphiQL / Playground UI detected
+  - graphql_tracing_enabled (boolean): Apollo tracing extension is on
+  - graphql_get_allowed (boolean): GET-method queries accepted (CSRF vector)
+  - graphql_field_suggestions_enabled (boolean): "Did you mean X?" errors leak schema
+  - graphql_batching_enabled (boolean): Array-based batched queries accepted
 
 **Parameter** - URL/form parameters
 - name (string): "id", "username", "page"
@@ -1175,13 +1193,13 @@ Each node has `user_id` and `project_id` properties for tenant isolation (handle
 - Vulnerability nodes = findings from scanners (nuclei, gvm, security_check, netlas)
 - CVE nodes = known CVEs linked to technologies detected on the target
 
-**Vulnerability** - Scanner findings (from nuclei, gvm, security checks, netlas)
+**Vulnerability** - Scanner findings (from nuclei, gvm, security checks, netlas, graphql_scan)
 
 Common properties (all sources):
 - id (string): unique identifier
 - name (string): vulnerability name
 - severity (string): "critical", "high", "medium", "low", "info" (lowercase!)
-- source (string): **"nuclei"** (DAST/web), **"gvm"** (network/OpenVAS), **"security_check"**, or **"netlas"** (passive NVD-based)
+- source (string): **"nuclei"** (DAST/web), **"gvm"** (network/OpenVAS), **"security_check"**, **"netlas"** (passive NVD-based), or **"graphql_scan"** (GraphQL security testing)
 - description (string): vulnerability description
 - cvss_score (float): 0.0 to 10.0
 
@@ -1216,6 +1234,25 @@ GVM-specific properties (source="gvm"):
 - remediated (boolean): true if marked as closed/patched by GVM re-scan
 - scanner (string): always "OpenVAS"
 - scan_timestamp (string): GVM scan timestamp
+
+GraphQL-specific properties (source="graphql_scan"):
+- vulnerability_type (string): one of "graphql_introspection_enabled", "graphql_sensitive_data_exposure"
+- endpoint (string): the GraphQL endpoint URL (e.g. "https://api.target.com/graphql")
+- title (string): human-readable finding title
+- evidence (string): JSON blob with counts/fields (queries_count, mutations_count, subscriptions_count, sensitive_fields, schema_hash)
+- timestamp (datetime): ISO timestamp of discovery
+- id pattern: `graphql_{vulnerability_type}_{baseurl}_{path}` (deterministic, MERGE-safe across re-scans)
+- Typical query: "find endpoints exposing GraphQL introspection" → `MATCH (e:Endpoint {is_graphql: true, graphql_introspection_enabled: true})-[:HAS_VULNERABILITY]->(v:Vulnerability) WHERE v.source IN ['graphql_scan', 'graphql_cop'] RETURN e.url, v.vulnerability_type, v.severity`
+
+graphql-cop properties (source="graphql_cop" -- external Docker scanner, Phase 2):
+- 12 distinct vulnerability_type values:
+  - Info-leak: graphql_field_suggestions_enabled (LOW), graphql_ide_exposed (LOW), graphql_tracing_enabled (INFO), graphql_unhandled_error (INFO)
+  - CSRF: graphql_get_method_allowed (MEDIUM), graphql_get_based_mutation (MEDIUM), graphql_post_csrf (MEDIUM)
+  - DoS: graphql_alias_overloading (HIGH), graphql_batch_query_allowed (HIGH), graphql_directive_overloading (HIGH), graphql_circular_introspection (HIGH)
+  - Overlap with native: graphql_introspection_enabled (when cop's introspection test is explicitly enabled)
+- evidence (string): JSON blob with curl_verify (reproducer cURL), raw_severity (HIGH/MEDIUM/LOW/INFO), color, graphql_cop_key
+- Same deterministic ID pattern — dedupes with graphql_scan when the same vulnerability_type fires on the same endpoint
+- Typical query: "list all graphql-cop DoS findings" → `MATCH (v:Vulnerability {source: 'graphql_cop'}) WHERE v.vulnerability_type IN ['graphql_alias_overloading', 'graphql_batch_query_allowed', 'graphql_directive_overloading', 'graphql_circular_introspection'] RETURN v.vulnerability_type, v.severity, v.endpoint`
 
 **CVE** - Known CVE entries (linked to Technologies)
 - id (string): "CVE-2021-41773", "CVE-2021-44228"

@@ -252,7 +252,7 @@ def test_jsluice_parallelism():
 
 def test_rate_limiter_thread_safety():
     """Verify RateLimiter enforces interval across threads without serializing."""
-    from recon.shodan_enrich import _RateLimiter
+    from recon.main_recon_modules.shodan_enrich import _RateLimiter
 
     limiter = _RateLimiter(0.1)  # 100ms interval
     timestamps = []

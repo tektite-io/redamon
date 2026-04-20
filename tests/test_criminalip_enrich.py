@@ -1,5 +1,5 @@
 """
-Unit tests for Criminal IP enrichment (recon/criminalip_enrich.py).
+Unit tests for Criminal IP enrichment (recon/main_recon_modules/criminalip_enrich.py).
 
 Mocks requests.get for https://api.criminalip.io/v1/*.
 Mock responses use the real API format (tags/count+data wrappers).
@@ -12,7 +12,7 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(REPO_ROOT / "recon"))
+sys.path.insert(0, str(REPO_ROOT / "recon" / "main_recon_modules"))
 
 from criminalip_enrich import run_criminalip_enrichment, run_criminalip_enrichment_isolated
 

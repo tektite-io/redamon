@@ -59,7 +59,9 @@ OSINT analysts, threat intelligence teams, or red team operators building a targ
 9. MITRE enrichment classifies findings by CWE weakness and CAPEC attack patterns`,
   parameters: {
     // Modules: domain_discovery + port_scan (passive) + resource_enum (GAU/ParamSpider/Arjun passive)
-    scanModules: ['domain_discovery', 'port_scan', 'resource_enum'],
+    //        + vuln_scan (needed for CVE lookup + MITRE enrichment -- Nuclei itself is
+    //          disabled below so nothing active is sent to the target).
+    scanModules: ['domain_discovery', 'port_scan', 'resource_enum', 'vuln_scan'],
 
     stealthMode: false,
     useTorForRecon: false,
@@ -186,5 +188,9 @@ OSINT analysts, threat intelligence teams, or red team operators building a targ
 
     uncoverEnabled: true,
     uncoverMaxResults: 1000,
+
+    // --- GraphQL: explicit OFF so switching from a GraphQL-enabled preset resets cleanly ---
+    graphqlSecurityEnabled: false,
+    graphqlCopEnabled: false,
   },
 }

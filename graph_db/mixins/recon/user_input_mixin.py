@@ -474,6 +474,33 @@ class UserInputMixin:
                     "source": "graph" if record["domain"] else "settings",
                 }
 
+            elif tool_id == "GraphqlScan":
+                # GraphQL scan consumes BaseURLs + Endpoints (graph-only, no user textareas)
+                result = session.run(
+                    """
+                    OPTIONAL MATCH (d:Domain {user_id: $uid, project_id: $pid})
+                    WITH d
+                    OPTIONAL MATCH (b:BaseURL {user_id: $uid, project_id: $pid})
+                    WITH d, collect(DISTINCT b.url) AS baseurls
+                    OPTIONAL MATCH (e:Endpoint {user_id: $uid, project_id: $pid})
+                    WITH d, baseurls, count(DISTINCT e) AS endpoint_count,
+                         count(DISTINCT CASE WHEN e.is_graphql = true THEN e END) AS graphql_endpoint_count
+                    RETURN d.name AS domain, baseurls, size(baseurls) AS baseurl_count,
+                           endpoint_count, graphql_endpoint_count
+                    """,
+                    uid=user_id, pid=project_id,
+                )
+                record = result.single()
+                return {
+                    "domain": record["domain"] if record["domain"] else None,
+                    "existing_subdomains_count": 0,
+                    "existing_baseurls": record["baseurls"] or [],
+                    "existing_baseurls_count": record["baseurl_count"] or 0,
+                    "existing_endpoints_count": record["endpoint_count"] or 0,
+                    "existing_graphql_endpoints_count": record["graphql_endpoint_count"] or 0,
+                    "source": "graph" if record["domain"] else "settings",
+                }
+
             elif tool_id == "Shodan":
                 # Get domain, subdomain names (for IP attach-to dropdown), and IP count
                 result = session.run(

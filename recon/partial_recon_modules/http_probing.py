@@ -27,7 +27,7 @@ def run_httpx(config: dict) -> None:
     Subdomains are resolved and added to the DNS section.
     """
     import ipaddress as _ipaddress
-    from recon.http_probe import run_http_probe as _run_http_probe
+    from recon.main_recon_modules.http_probe import run_http_probe as _run_http_probe
     from recon.project_settings import get_settings
 
     domain = config["domain"]
