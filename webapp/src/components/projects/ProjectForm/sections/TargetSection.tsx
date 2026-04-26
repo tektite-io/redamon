@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from 'react'
 import { ChevronDown, Target, ShieldAlert, AlertTriangle } from 'lucide-react'
-import { Toggle } from '@/components/ui'
+import { Toggle, WikiInfoButton } from '@/components/ui'
 import type { Project } from '@prisma/client'
 import { isHardBlockedDomain } from '@/lib/hard-guardrail'
 import styles from '../ProjectForm.module.css'
@@ -96,6 +96,7 @@ export function TargetSection({ data, updateField, mode = 'create' }: TargetSect
         <h2 className={styles.sectionTitle}>
           <Target size={16} />
           Target Configuration
+          <WikiInfoButton target="Target" />
         </h2>
         <ChevronDown
           size={16}

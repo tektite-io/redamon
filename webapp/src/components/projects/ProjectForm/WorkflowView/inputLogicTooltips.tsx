@@ -681,6 +681,47 @@ const SubdomainTakeover = (
   </div>
 )
 
+const VhostSni = (
+  <div style={wrapperStyle}>
+    <div style={firstSectionTitleStyle}>How input is generated</div>
+    <p style={paraStyle}>
+      VHost &amp; SNI Enumeration probes every IP discovered by port scanning, sending two crafted curl requests per candidate hostname. The candidate list is built per IP from up to seven sources, deduplicated and capped at the configured maximum:
+    </p>
+    <ul style={listStyle}>
+      <li><strong>Subdomain</strong> nodes that resolve to the IP (via <span style={codeStyle}>RESOLVES_TO</span>).</li>
+      <li><strong>ExternalDomain</strong> nodes that resolve to the same IP (out-of-scope, but co-hosted, often the highest-signal source).</li>
+      <li>TLS Subject Alternative Names captured on each <strong>BaseURL</strong> served from this IP, plus any standalone <strong>Certificate</strong> nodes.</li>
+      <li>CNAME targets recorded in <strong>DNSRecord</strong> entries.</li>
+      <li>Reverse-DNS PTR record stored on the <strong>IP</strong> node.</li>
+      <li>The default wordlist (~2,300 admin / dev / staging / internal / modern-stack prefixes), expanded as <span style={codeStyle}>{`{prefix}.{target_apex}`}</span>.</li>
+      <li>Any custom wordlist provided in the section settings (newline-separated, prefixes or full hostnames).</li>
+    </ul>
+    <p style={paraStyle}>
+      Each candidate is tested at two layers: the <strong>L7 test</strong> sends an HTTP request to the bare IP with an overridden <span style={codeStyle}>Host:</span> header (catches classic Apache/Nginx vhosts). The <strong>L4 test</strong> uses curl <span style={codeStyle}>--resolve</span> to force the TLS handshake to carry the candidate as SNI while still hitting the IP (catches modern reverse-proxy and ingress routing). Each response is compared to a baseline obtained by curling the IP with no overrides at all.
+    </p>
+    <p style={paraStyle}>
+      In partial recon, the modal accepts <strong>Subdomain</strong> and <strong>IP</strong> inputs. Subdomains are validated as in-scope (must end with the project domain) and become extra candidates. IPs become extra targets to probe (with the same baseline + L7 + L4 logic).
+    </p>
+
+    <div style={sectionTitleStyle}>How output transforms the graph</div>
+    <ul style={listStyle}>
+      <li>Each anomaly produces a <strong>Vulnerability</strong> node typed as <em>Hidden Virtual Host</em> (L7 only), <em>Hidden SNI Route</em> (L4 only), or <em>Routing Inconsistency / Host Header Bypass</em> (L7 vs L4 disagreement). Severity is escalated to <em>medium</em> when the discovered hostname matches an internal-keyword pattern (admin, jenkins, k8s, vault, etc.) and to <em>high</em> when L7 and L4 routing disagree.</li>
+      <li>The Vulnerability is attached to the discovered <strong>Subdomain</strong> via <span style={codeStyle}>HAS_VULNERABILITY</span>. For host-header-bypass findings the <strong>IP</strong> also gets the same Vulnerability so it surfaces in IP-level dashboards.</li>
+      <li>Every probed Subdomain is enriched in place with <em>vhost_tested</em>, <em>vhost_hidden</em>, <em>vhost_routing_layer</em>, <em>vhost_status_code</em>, <em>vhost_size_delta</em>, and <em>sni_routed</em>.</li>
+      <li>Every probed IP is enriched with <em>vhost_baseline_status</em>, <em>vhost_baseline_size</em>, <em>hosts_hidden_vhosts</em>, <em>hidden_vhost_count</em>, and <em>is_reverse_proxy</em>.</li>
+      <li>For every confirmed hidden vhost, a <strong>BaseURL</strong> is created (with <em>discovery_source = vhost_sni_enum</em>) and linked to the Subdomain via <span style={codeStyle}>HAS_BASEURL</span>, so a follow-up partial recon can route the new URL through Katana and Nuclei.</li>
+    </ul>
+    <p style={{ ...paraStyle, margin: 0 }}>
+      Findings are deduplicated per <em>(hostname + IP + port + layer)</em>. Re-running refreshes <em>last_seen</em> rather than creating duplicates.
+    </p>
+
+    <div style={sectionTitleStyle}>When the scan refuses to start</div>
+    <p style={{ ...paraStyle, margin: 0 }}>
+      If there are no IPs in the graph and no IP targets were provided in the modal, or if both L7 and L4 tests are disabled, or if curl is missing from the recon image. With graph candidates, default wordlist, and custom wordlist all turned off there is also nothing to test.
+    </p>
+  </div>
+)
+
 const SecurityChecks = (
   <div style={wrapperStyle}>
     <div style={firstSectionTitleStyle}>How input is generated</div>
@@ -794,6 +835,7 @@ export const INPUT_LOGIC_TOOLTIPS: Record<string, ReactNode> = {
   Nuclei,
   GraphqlScan,
   SubdomainTakeover,
+  VhostSni,
   SecurityChecks,
   CveLookup,
   Mitre,

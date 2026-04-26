@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { ChevronDown, Globe, Info, Play } from 'lucide-react'
-import { Toggle } from '@/components/ui'
+import { Toggle, WikiInfoButton } from '@/components/ui'
 import type { Project } from '@prisma/client'
 import { useProject } from '@/providers/ProjectProvider'
 import styles from '../ProjectForm.module.css'
@@ -42,6 +42,7 @@ export function UrlscanSection({ data, updateField, onRun }: UrlscanSectionProps
           <Globe size={16} />
           URLScan.io Enrichment
           <NodeInfoTooltip section="Urlscan" />
+          <WikiInfoButton target="Urlscan" />
           <span className={styles.badgePassive}>Passive</span>
         </h2>
         <div className={styles.sectionHeaderRight}>

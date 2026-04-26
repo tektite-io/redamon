@@ -307,6 +307,19 @@ model Project {
   baddnsNameservers                String[] @default([]) @map("baddns_nameservers")
   baddnsRunTimeout                 Int      @default(1800) @map("baddns_run_timeout")
 
+  // ========== VHOST & SNI ENUMERATION ==========
+  vhostSniEnabled                  Boolean  @default(false) @map("vhost_sni_enabled")
+  vhostSniTimeout                  Int      @default(3) @map("vhost_sni_timeout")
+  vhostSniConcurrency              Int      @default(20) @map("vhost_sni_concurrency")
+  vhostSniBaselineSizeTolerance    Int      @default(50) @map("vhost_sni_baseline_size_tolerance")
+  vhostSniTestL7                   Boolean  @default(true) @map("vhost_sni_test_l7")
+  vhostSniTestL4                   Boolean  @default(true) @map("vhost_sni_test_l4")
+  vhostSniInjectDiscovered         Boolean  @default(true) @map("vhost_sni_inject_discovered")
+  vhostSniUseDefaultWordlist       Boolean  @default(true) @map("vhost_sni_use_default_wordlist")
+  vhostSniUseGraphCandidates       Boolean  @default(true) @map("vhost_sni_use_graph_candidates")
+  vhostSniCustomWordlist           String   @default("") @map("vhost_sni_custom_wordlist") @db.Text
+  vhostSniMaxCandidatesPerIp       Int      @default(2000) @map("vhost_sni_max_candidates_per_ip")
+
   // ========== KATANA WEB CRAWLER ==========
   katanaEnabled               Boolean  @default(true) @map("katana_enabled")
   katanaDockerImage           String   @default("projectdiscovery/katana:latest") @map("katana_docker_image")

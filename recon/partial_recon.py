@@ -62,6 +62,7 @@ from recon.partial_recon_modules.vulnerability_scanning import (
     run_nuclei,
     run_security_checks_partial,
     run_subdomain_takeover_partial,
+    run_vhost_sni_partial,
 )
 from recon.partial_recon_modules.osint_enrichment import (
     run_shodan,
@@ -127,6 +128,8 @@ def main():
         run_nuclei(config)
     elif tool_id == "SubdomainTakeover":
         run_subdomain_takeover_partial(config)
+    elif tool_id == "VhostSni":
+        run_vhost_sni_partial(config)
     elif tool_id == "SecurityChecks":
         run_security_checks_partial(config)
     elif tool_id == "Shodan":

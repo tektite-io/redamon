@@ -9,7 +9,7 @@ import { LlmProviderForm } from '@/components/settings/LlmProviderForm'
 import type { ProviderData } from '@/components/settings/LlmProviderForm'
 import { PROVIDER_TYPES } from '@/lib/llmProviderPresets'
 import { Modal } from '@/components/ui/Modal/Modal'
-import { useAlertModal, useToast } from '@/components/ui'
+import { useAlertModal, useToast, WikiInfoButton } from '@/components/ui'
 import styles from '@/components/settings/Settings.module.css'
 import { buildTemplate, templateToJson, validateAndParse, isValidationError } from '@/lib/apiKeysTemplate'
 import type { ParsedImport } from '@/lib/apiKeysTemplate'
@@ -779,7 +779,10 @@ export default function SettingsPage() {
   if (!userId) {
     return (
       <div className={styles.page}>
-        <h1 className={styles.pageTitle}>Global Settings <span style={{ fontSize: '0.55em', fontWeight: 400, opacity: 0.5 }}>(User-Scoped)</span></h1>
+        <h1 className={styles.pageTitle} style={{ display: 'inline-flex', alignItems: 'center', gap: '12px' }}>
+          <span>Global Settings <span style={{ fontSize: '0.55em', fontWeight: 400, opacity: 0.5 }}>(User-Scoped)</span></span>
+          <WikiInfoButton target="settings" title="Open Global Settings wiki page" />
+        </h1>
         <div className={styles.emptyState}>Select a user to configure settings.</div>
       </div>
     )
@@ -813,7 +816,10 @@ export default function SettingsPage() {
       {/* Tab: LLM Providers */}
       {activeTab === 'providers' && <div className={styles.section}>
         <div className={styles.sectionHeader}>
-          <h2 className={styles.sectionTitle}>LLM Providers</h2>
+          <h2 className={styles.sectionTitle} style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+            <span>LLM Providers</span>
+            <WikiInfoButton target="https://github.com/samugit83/redamon/wiki/AI-Model-Providers" title="Open AI Model Providers wiki page" />
+          </h2>
           {!showProviderForm && !editingProvider && (
             <button className="primaryButton" onClick={() => setShowProviderForm(true)}>
               <Plus size={14} /> Add Provider
@@ -877,7 +883,10 @@ export default function SettingsPage() {
       {/* Tab: Agent Skills */}
       {activeTab === 'skills' && <div className={styles.section}>
         <div className={styles.sectionHeader}>
-          <h2 className={styles.sectionTitle}><Swords size={16} /> Agent Skills</h2>
+          <h2 className={styles.sectionTitle} style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+            <Swords size={16} /> Agent Skills
+            <WikiInfoButton target="https://github.com/samugit83/redamon/wiki/Agent-Skills" title="Open Agent Skills wiki page" />
+          </h2>
           <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
             <button
               className="secondaryButton"
@@ -941,7 +950,10 @@ export default function SettingsPage() {
       {/* Tab: Chat Skills */}
       {activeTab === 'chat-skills' && <div className={styles.section}>
         <div className={styles.sectionHeader}>
-          <h2 className={styles.sectionTitle}><BookOpen size={16} /> Chat Skills</h2>
+          <h2 className={styles.sectionTitle} style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+            <BookOpen size={16} /> Chat Skills
+            <WikiInfoButton target="https://github.com/samugit83/redamon/wiki/Chat-Skills" title="Open Chat Skills wiki page" />
+          </h2>
           <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
             <button
               className="secondaryButton"
@@ -1021,7 +1033,10 @@ export default function SettingsPage() {
       {/* Tab: API Keys & Tunneling */}
       {activeTab === 'keys' && <><div className={styles.section}>
         <div className={styles.sectionHeader}>
-          <h2 className={styles.sectionTitle}>API Keys</h2>
+          <h2 className={styles.sectionTitle} style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+            <span>API Keys</span>
+            <WikiInfoButton target="settings" title="Open Global Settings wiki page" />
+          </h2>
           <div className={styles.sectionHeaderActions}>
             <button className={styles.sectionHeaderBtn} onClick={downloadKeysTemplate} title="Download a JSON template to fill in your API keys offline">
               <Download size={13} /> Download Template
@@ -1345,7 +1360,10 @@ export default function SettingsPage() {
       {/* Tunneling sub-section */}
       <div className={styles.section}>
         <div className={styles.sectionHeader}>
-          <h2 className={styles.sectionTitle}>Tunneling</h2>
+          <h2 className={styles.sectionTitle} style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+            <span>Tunneling</span>
+            <WikiInfoButton target="https://github.com/samugit83/redamon/wiki/Reverse-Shells" title="Open Reverse Shells wiki page" />
+          </h2>
         </div>
         <p className={styles.sectionHint}>
           Configure reverse shell tunneling. Choose ngrok (free, single port) or chisel (multi-port, requires VPS). Changes apply immediately.
@@ -1764,7 +1782,10 @@ function SystemSection() {
   return (
     <div className={styles.section}>
       <div className={styles.sectionHeader}>
-        <h2 className={styles.sectionTitle}><Info size={16} /> System</h2>
+        <h2 className={styles.sectionTitle} style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+          <Info size={16} /> System
+          <WikiInfoButton target="https://github.com/samugit83/redamon/wiki/Troubleshooting" title="Open Troubleshooting wiki page" />
+        </h2>
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>

@@ -19,8 +19,11 @@ sys.path.insert(0, _recon_dir)
 # Pre-mock heavy dependencies that aren't available in the test environment
 sys.modules['neo4j'] = MagicMock()
 
-# Import only load_config and helpers at module level (doesn't trigger lazy imports)
-from partial_recon import load_config, _classify_ip, _is_ip_or_cidr, _is_valid_hostname
+# Import only load_config and helpers at module level (doesn't trigger lazy imports).
+# After the partial_recon refactor, helpers moved into partial_recon_modules but the
+# original test imported them from `partial_recon` directly — re-route the import.
+from partial_recon import load_config
+from recon.partial_recon_modules.helpers import _classify_ip, _is_ip_or_cidr, _is_valid_hostname
 
 # After the refactoring into partial_recon_modules/, monkey-patching pr._resolve_hostname
 # no longer affects submodule calls. Import the submodules so tests can patch at the right level.
@@ -4712,6 +4715,66 @@ class TestRunNuclei(unittest.TestCase):
         recon_data = call_args[0][0]
         self.assertIn('subdomains', recon_data)
         self.assertIsInstance(recon_data['subdomains'], list)
+
+
+class TestRunVhostSni(unittest.TestCase):
+    """
+    Smoke tests for the VHost & SNI partial-recon dispatch path.
+
+    Deeper unit + orchestration coverage lives in the dedicated file
+    `test_vhost_sni_partial.py` (14 tests). This class lives in
+    `test_partial_recon.py` as required by PROMPT.ADD_PARTIAL_RECON.md so
+    every supported tool has its dispatch path tested in the canonical file.
+    """
+
+    def setUp(self):
+        os.environ["USER_ID"] = "test-user"
+        os.environ["PROJECT_ID"] = "test-project"
+
+    def test_run_vhost_sni_partial_is_importable(self):
+        """The partial-recon entrypoint must import cleanly."""
+        from recon.partial_recon_modules.vulnerability_scanning import run_vhost_sni_partial
+        self.assertTrue(callable(run_vhost_sni_partial))
+
+    def test_main_dispatches_vhost_sni_tool_id(self):
+        """main() must route tool_id='VhostSni' to run_vhost_sni_partial."""
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+            json.dump({"tool_id": "VhostSni", "domain": "example.com"}, f)
+            f.flush()
+            os.environ["PARTIAL_RECON_CONFIG"] = f.name
+            try:
+                import importlib
+                import partial_recon as pr
+                importlib.reload(pr)
+                with patch.object(pr, "run_vhost_sni_partial") as mock_runner, \
+                     patch.object(pr, "_cleanup_orphan_user_inputs"):
+                    pr.main()
+                mock_runner.assert_called_once()
+                config_arg = mock_runner.call_args[0][0]
+                self.assertEqual(config_arg["tool_id"], "VhostSni")
+            finally:
+                del os.environ["PARTIAL_RECON_CONFIG"]
+                os.unlink(f.name)
+
+    def test_lowercase_tool_id_does_not_match(self):
+        """Defensive: a typo'd tool_id must not silently route to VhostSni."""
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+            json.dump({"tool_id": "vhostsni", "domain": "example.com"}, f)
+            f.flush()
+            os.environ["PARTIAL_RECON_CONFIG"] = f.name
+            try:
+                import importlib
+                import partial_recon as pr
+                importlib.reload(pr)
+                with patch.object(pr, "run_vhost_sni_partial") as mock_runner, \
+                     patch.object(pr, "_cleanup_orphan_user_inputs"):
+                    with self.assertRaises(SystemExit) as cm:
+                        pr.main()
+                    self.assertEqual(cm.exception.code, 1)
+                mock_runner.assert_not_called()
+            finally:
+                del os.environ["PARTIAL_RECON_CONFIG"]
+                os.unlink(f.name)
 
 
 if __name__ == "__main__":

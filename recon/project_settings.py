@@ -193,6 +193,23 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     'BADDNS_NAMESERVERS': [],
     'BADDNS_RUN_TIMEOUT': 1800,
 
+    # VHost & SNI Enumeration
+    # Runs in GROUP 6 Phase A alongside Nuclei/GraphQL/Subdomain Takeover.
+    # Tests every (subdomain, IP, port) for hidden virtual hosts via L7
+    # (Host header) and L4 (TLS SNI) probes. Writes Vulnerability nodes with
+    # source="vhost_sni_enum". See recon/main_recon_modules/vhost_sni_enum.py.
+    'VHOST_SNI_ENABLED': False,
+    'VHOST_SNI_TIMEOUT': 3,
+    'VHOST_SNI_CONCURRENCY': 20,
+    'VHOST_SNI_BASELINE_SIZE_TOLERANCE': 50,
+    'VHOST_SNI_TEST_L7': True,
+    'VHOST_SNI_TEST_L4': True,
+    'VHOST_SNI_INJECT_DISCOVERED': True,
+    'VHOST_SNI_USE_DEFAULT_WORDLIST': True,
+    'VHOST_SNI_USE_GRAPH_CANDIDATES': True,
+    'VHOST_SNI_CUSTOM_WORDLIST': '',
+    'VHOST_SNI_MAX_CANDIDATES_PER_IP': 2000,
+
     # Katana Web Crawler
     'KATANA_ENABLED': True,
     'KATANA_DOCKER_IMAGE': 'projectdiscovery/katana:latest',
@@ -795,6 +812,19 @@ def fetch_project_settings(project_id: str, webapp_url: str) -> dict[str, Any]:
     settings['BADDNS_NAMESERVERS'] = project.get('baddnsNameservers', DEFAULT_SETTINGS['BADDNS_NAMESERVERS'])
     settings['BADDNS_RUN_TIMEOUT'] = project.get('baddnsRunTimeout', DEFAULT_SETTINGS['BADDNS_RUN_TIMEOUT'])
 
+    # VHost & SNI Enumeration
+    settings['VHOST_SNI_ENABLED'] = project.get('vhostSniEnabled', DEFAULT_SETTINGS['VHOST_SNI_ENABLED'])
+    settings['VHOST_SNI_TIMEOUT'] = project.get('vhostSniTimeout', DEFAULT_SETTINGS['VHOST_SNI_TIMEOUT'])
+    settings['VHOST_SNI_CONCURRENCY'] = project.get('vhostSniConcurrency', DEFAULT_SETTINGS['VHOST_SNI_CONCURRENCY'])
+    settings['VHOST_SNI_BASELINE_SIZE_TOLERANCE'] = project.get('vhostSniBaselineSizeTolerance', DEFAULT_SETTINGS['VHOST_SNI_BASELINE_SIZE_TOLERANCE'])
+    settings['VHOST_SNI_TEST_L7'] = project.get('vhostSniTestL7', DEFAULT_SETTINGS['VHOST_SNI_TEST_L7'])
+    settings['VHOST_SNI_TEST_L4'] = project.get('vhostSniTestL4', DEFAULT_SETTINGS['VHOST_SNI_TEST_L4'])
+    settings['VHOST_SNI_INJECT_DISCOVERED'] = project.get('vhostSniInjectDiscovered', DEFAULT_SETTINGS['VHOST_SNI_INJECT_DISCOVERED'])
+    settings['VHOST_SNI_USE_DEFAULT_WORDLIST'] = project.get('vhostSniUseDefaultWordlist', DEFAULT_SETTINGS['VHOST_SNI_USE_DEFAULT_WORDLIST'])
+    settings['VHOST_SNI_USE_GRAPH_CANDIDATES'] = project.get('vhostSniUseGraphCandidates', DEFAULT_SETTINGS['VHOST_SNI_USE_GRAPH_CANDIDATES'])
+    settings['VHOST_SNI_CUSTOM_WORDLIST'] = project.get('vhostSniCustomWordlist', DEFAULT_SETTINGS['VHOST_SNI_CUSTOM_WORDLIST'])
+    settings['VHOST_SNI_MAX_CANDIDATES_PER_IP'] = project.get('vhostSniMaxCandidatesPerIp', DEFAULT_SETTINGS['VHOST_SNI_MAX_CANDIDATES_PER_IP'])
+
     # Katana Web Crawler
     settings['KATANA_ENABLED'] = project.get('katanaEnabled', DEFAULT_SETTINGS['KATANA_ENABLED'])
     settings['KATANA_DOCKER_IMAGE'] = project.get('katanaDockerImage', DEFAULT_SETTINGS['KATANA_DOCKER_IMAGE'])
@@ -1357,6 +1387,13 @@ def apply_stealth_overrides(settings: dict[str, Any]) -> dict[str, Any]:
     settings['SUBJACK_THREADS'] = 3
     settings['TAKEOVER_RATE_LIMIT'] = 10
     settings['BADDNS_ENABLED'] = False          # Keep isolated sidecar off in stealth
+
+    # --- VHost & SNI: disable entirely. The default 2,380-prefix wordlist plus
+    # L4 SNI brute would be both catastrophically slow over Tor AND noisy in
+    # exit-node logs. Users who really want stealth vhost discovery should
+    # build a custom preset (see red-team-operator) with graph-only candidates,
+    # L7-only, low concurrency. ---
+    settings['VHOST_SNI_ENABLED'] = False
 
     # --- Hakrawler: DISABLED (active crawler, no rate-limit control) ---
     settings['HAKRAWLER_ENABLED'] = False

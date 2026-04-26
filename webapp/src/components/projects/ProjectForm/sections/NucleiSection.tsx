@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { ChevronDown, Shield, Upload, Trash2, Loader2, FileText, Play, AlertTriangle } from 'lucide-react'
-import { Toggle } from '@/components/ui'
+import { Toggle, WikiInfoButton } from '@/components/ui'
 import type { Project } from '@prisma/client'
 import styles from '../ProjectForm.module.css'
 import { NodeInfoTooltip } from '../NodeInfoTooltip'
@@ -119,6 +119,7 @@ export function NucleiSection({ data, updateField, onRun }: NucleiSectionProps) 
           <Shield size={16} />
           Nuclei Vulnerability Scanner
           <NodeInfoTooltip section="Nuclei" />
+          <WikiInfoButton target="Nuclei" />
           <span className={styles.badgeActive}>Active</span>
         </h2>
         <div className={styles.sectionHeaderRight}>
@@ -154,7 +155,7 @@ export function NucleiSection({ data, updateField, onRun }: NucleiSectionProps) 
       {isOpen && (
         <div className={styles.sectionContent}>
           <p className={styles.sectionDescription}>
-            Template-based vulnerability scanning using ProjectDiscovery's Nuclei. Runs thousands of security checks against discovered endpoints to identify CVEs, misconfigurations, exposed panels, and other security issues.
+            Template-based vulnerability scanning using ProjectDiscovery&apos;s Nuclei. Runs thousands of security checks against discovered endpoints to identify CVEs, misconfigurations, exposed panels, and other security issues.
           </p>
           {data.nucleiEnabled && (
           <>

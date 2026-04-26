@@ -25,6 +25,7 @@ export const SECTION_INPUT_MAP: Record<string, string[]> = {
   GraphqlScan:        ['BaseURL', 'Endpoint'],
   Mitre:              ['CVE'],
   SubdomainTakeover:  ['Subdomain', 'BaseURL', 'Domain'],
+  VhostSni:           ['Subdomain', 'IP', 'Port', 'BaseURL', 'Certificate', 'DNSRecord', 'ExternalDomain'],
 }
 
 export const SECTION_NODE_MAP: Record<string, string[]> = {
@@ -54,6 +55,7 @@ export const SECTION_NODE_MAP: Record<string, string[]> = {
   GraphqlScan:        ['Vulnerability', 'Endpoint'],
   Mitre:              ['MitreData', 'Capec'],
   SubdomainTakeover:  ['Vulnerability'],
+  VhostSni:           ['Vulnerability', 'BaseURL', 'Subdomain'],
 }
 
 export const SECTION_ENRICH_MAP: Record<string, string[]> = {
@@ -67,4 +69,5 @@ export const SECTION_ENRICH_MAP: Record<string, string[]> = {
   Httpx:              ['Subdomain', 'Domain'],
   SecurityChecks:     ['IP'],
   GraphqlScan:        ['Endpoint'],
+  VhostSni:           ['Subdomain', 'IP'],
 }

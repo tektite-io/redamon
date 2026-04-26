@@ -12,6 +12,12 @@ This package contains helper functions organized by category:
 - security_checks: Custom security checks (direct IP access, TLS, headers, etc.)
 """
 
+# Standard logging
+from .log_helpers import (
+    print_effective_settings,
+    is_sensitive_key,
+)
+
 # Docker utilities
 from .docker_helpers import (
     is_docker_installed,

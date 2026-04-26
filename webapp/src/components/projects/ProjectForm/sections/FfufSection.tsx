@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { ChevronDown, FolderSearch, Upload, X, Loader2, Play } from 'lucide-react'
-import { Toggle } from '@/components/ui'
+import { Toggle, WikiInfoButton } from '@/components/ui'
 import type { Project } from '@prisma/client'
 import styles from '../ProjectForm.module.css'
 import { NodeInfoTooltip } from '../NodeInfoTooltip'
@@ -126,6 +126,7 @@ export function FfufSection({ data, updateField, projectId, mode, onRun }: FfufS
           <FolderSearch size={16} />
           FFuf Directory Fuzzer
           <NodeInfoTooltip section="Ffuf" />
+          <WikiInfoButton target="Ffuf" />
           <span className={styles.badgeActive}>Active</span>
         </h2>
         <div className={styles.sectionHeaderRight}>

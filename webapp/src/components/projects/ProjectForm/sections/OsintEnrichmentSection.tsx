@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { ChevronDown, ShieldCheck, Info, Play } from 'lucide-react'
-import { Toggle } from '@/components/ui'
+import { Toggle, WikiInfoButton } from '@/components/ui'
 import type { Project } from '@prisma/client'
 import { useProject } from '@/providers/ProjectProvider'
 import styles from '../ProjectForm.module.css'
@@ -63,6 +63,7 @@ export function OsintEnrichmentSection({ data, updateField, onRun, onRunUncover 
           <ShieldCheck size={16} />
           OSINT &amp; Threat Intelligence Enrichment
           <NodeInfoTooltip section="OsintEnrichment" />
+          <WikiInfoButton target="OsintEnrichment" />
           <span className={styles.badgePassive}>Passive</span>
         </h2>
         <div className={styles.sectionHeaderRight}>

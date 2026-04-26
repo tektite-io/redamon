@@ -325,6 +325,19 @@ export const reconPresetSchema = z.object({
   baddnsNameservers: strArr,
   baddnsRunTimeout: int,
 
+  // -- VHost & SNI Enumeration --
+  vhostSniEnabled: bool,
+  vhostSniTimeout: int,
+  vhostSniConcurrency: int,
+  vhostSniBaselineSizeTolerance: int,
+  vhostSniTestL7: bool,
+  vhostSniTestL4: bool,
+  vhostSniInjectDiscovered: bool,
+  vhostSniUseDefaultWordlist: bool,
+  vhostSniUseGraphCandidates: bool,
+  vhostSniMaxCandidatesPerIp: int,
+  vhostSniCustomWordlist: str,
+
   // -- CVE Lookup --
   cveLookupEnabled: bool,
   cveLookupSource: str,
@@ -722,6 +735,19 @@ export const RECON_PARAMETER_CATALOG = `
 - baddnsModules: string[] - Subset of BadDNS modules to run. Valid: cname, ns, mx, txt, spf, dmarc, wildcard, nsec, references, zonetransfer. (MTA-STS exists in baddns 2.1.0 but is not CLI-addressable due to an upstream validator regex bug -- omit.) Default: ["cname","ns","mx","txt","spf"]
 - baddnsNameservers: string[] - Optional custom DNS resolvers (e.g. ["1.1.1.1","8.8.8.8"]). Empty = system resolvers.
 - baddnsRunTimeout: integer - Hard wall clock for the BadDNS pass in seconds. Default 1800.
+
+## VHost & SNI Enumeration (curl-based hidden virtual host discovery)
+- vhostSniEnabled: boolean - Master switch. Tests every (subdomain, IP, port) for hidden virtual hosts via L7 (HTTP Host header trick) and L4 (TLS SNI trick). Active scan, sends extra traffic to each target IP. Default false.
+- vhostSniTimeout: integer - curl --connect-timeout per request in seconds (total budget per request is 3x). Default 3.
+- vhostSniConcurrency: integer - Parallel curl probes per IP/port. Higher = faster, louder. Default 20.
+- vhostSniBaselineSizeTolerance: integer - Body size deltas within this many bytes are not flagged (suppresses Set-Cookie / timestamp jitter). Default 50.
+- vhostSniTestL7: boolean - Run the HTTP Host header trick (catches classic Apache/Nginx vhosts). Default true.
+- vhostSniTestL4: boolean - Run the TLS SNI trick via curl --resolve (catches modern reverse proxies, k8s ingress, Cloudflare). Default true.
+- vhostSniInjectDiscovered: boolean - When a hidden vhost is confirmed, create a BaseURL node so a follow-up partial recon (Katana, Nuclei) can scan it. Default true.
+- vhostSniUseDefaultWordlist: boolean - Use the bundled vhost-common.txt wordlist (~2,300 admin/dev/staging/internal/modern-stack prefixes, expanded as {prefix}.{target_apex}). Default true.
+- vhostSniUseGraphCandidates: boolean - Pull hostnames from existing Subdomain, ExternalDomain, TLS SAN list, CNAME targets and reverse-DNS PTR records resolving to each target IP. Highest signal source. Default true.
+- vhostSniMaxCandidatesPerIp: integer - Hard cap on candidates per IP to bound run time. Default 2000.
+- vhostSniCustomWordlist: string - Optional newline-separated custom prefixes/hostnames (per-project file/text). Bare prefixes expand as {prefix}.{target_apex}; full hostnames are used as-is. Default "".
 
 ## CVE Lookup
 - cveLookupEnabled: boolean

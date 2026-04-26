@@ -733,6 +733,56 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       }
     }
 
+    else if (toolId === 'VhostSni') {
+      try {
+        const session = getSession()
+        try {
+          const result = await session.run(
+            `OPTIONAL MATCH (d:Domain {user_id: $uid, project_id: $pid})
+             OPTIONAL MATCH (d)-[:HAS_SUBDOMAIN]->(s:Subdomain)
+             OPTIONAL MATCH (s)-[:RESOLVES_TO]->(i:IP)
+             OPTIONAL MATCH (i)-[:HAS_PORT]->(p:Port)
+             OPTIONAL MATCH (s)-[:HAS_BASEURL]->(bu:BaseURL)
+             OPTIONAL MATCH (ed:ExternalDomain {user_id: $uid, project_id: $pid})
+             WITH d, collect(DISTINCT s.name) AS subdomains,
+                  count(DISTINCT i) AS ipCount,
+                  count(DISTINCT p) AS portCount,
+                  count(DISTINCT bu) AS baseurlCount,
+                  count(DISTINCT ed) AS externalCount
+             RETURN d.name AS domain, subdomains,
+                    size(subdomains) AS subCount,
+                    ipCount, portCount, baseurlCount, externalCount`,
+            { uid: project.userId, pid: projectId }
+          )
+          const record = result.records[0]
+          const domain = record?.get('domain') || null
+          const subdomains: string[] = record?.get('subdomains') || []
+          const subCount = record?.get('subCount')?.toNumber?.() ?? record?.get('subCount') ?? 0
+          const ipCount = record?.get('ipCount')?.toNumber?.() ?? record?.get('ipCount') ?? 0
+          const portCount = record?.get('portCount')?.toNumber?.() ?? record?.get('portCount') ?? 0
+          const baseurlCount = record?.get('baseurlCount')?.toNumber?.() ?? record?.get('baseurlCount') ?? 0
+          const externalCount = record?.get('externalCount')?.toNumber?.() ?? record?.get('externalCount') ?? 0
+
+          if (domain) {
+            return NextResponse.json({
+              domain,
+              existing_subdomains: subdomains,
+              existing_subdomains_count: subCount,
+              existing_ips_count: ipCount,
+              existing_ports_count: portCount,
+              existing_baseurls_count: baseurlCount,
+              existing_external_domains_count: externalCount,
+              source: 'graph',
+            })
+          }
+        } finally {
+          await session.close()
+        }
+      } catch (err) {
+        console.warn('Neo4j query failed for VhostSni graph-inputs, falling back to settings:', err)
+      }
+    }
+
     else if (toolId === 'SubdomainTakeover') {
       try {
         const session = getSession()

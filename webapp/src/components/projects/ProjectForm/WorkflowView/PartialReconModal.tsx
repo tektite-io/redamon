@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { Play, Loader2, ArrowRight, Upload, FileText, Trash2, Info } from 'lucide-react'
-import { Modal, Tooltip } from '@/components/ui'
+import { Modal, Tooltip, WikiInfoButton } from '@/components/ui'
 import type { GraphInputs, PartialReconParams, UserTargets } from '@/lib/recon-types'
 import { SECTION_INPUT_MAP, SECTION_NODE_MAP, SECTION_ENRICH_MAP } from '../nodeMapping'
 import { WORKFLOW_TOOLS } from './workflowDefinition'
@@ -148,6 +148,13 @@ const TOOL_DESCRIPTIONS: Record<string, string> = {
     'Findings are deduplicated across tools, scored (confirmed / likely / manual_review), and written as Vulnerability nodes ' +
     'with source="takeover_scan". Targets are loaded from the graph (Subdomains + alive URLs). ' +
     'You can also provide custom subdomains below.',
+  VhostSni:
+    'Discovers hidden virtual hosts on every target IP using two crafted curl probes per candidate hostname: ' +
+    'L7 (overrides the HTTP Host header) catches classic vhosts, L4 (uses --resolve to force the TLS SNI) catches ingress / k8s / Cloudflare routing. ' +
+    'Each response is compared to a baseline (raw IP request) and anomalies become Vulnerability nodes with source="vhost_sni_enum". ' +
+    'Candidate hostnames come from the graph (Subdomains, ExternalDomains, TLS SANs, CNAMEs, PTR records resolving to the target IP) ' +
+    'plus the bundled vhost-common.txt wordlist (~2,300 prefixes) and any custom wordlist set in the project. ' +
+    'You can also provide custom subdomains (added as candidate hostnames) and IPs (added as extra targets) below.',
   GraphqlScan:
     'Active GraphQL security scanner. Discovers GraphQL endpoints from crawled BaseURLs + Endpoints + JS findings, ' +
     'tests for exposed introspection, extracts schema, detects sensitive field exposure, and flags mutation / proxy ' +
@@ -406,9 +413,10 @@ export function PartialReconModal({
   const isShodan = toolId === 'Shodan'
   const isOsintEnrichment = toolId === 'OsintEnrichment'
   const isSubdomainTakeover = toolId === 'SubdomainTakeover'
-  const hasUserInputs = isPortScanner || isNmap || isHttpx || isResourceEnum || isArjun || isGau || isParamSpider || isSecurityChecks || isShodan || isOsintEnrichment || isGraphql || isSubdomainTakeover
-  const hasIpInput = isPortScanner || isNmap || isHttpx || isSecurityChecks || isShodan || isOsintEnrichment
-  const hasSubdomainInput = toolId === 'Naabu' || isHttpx || isGau || isParamSpider || isSecurityChecks || isSubdomainTakeover
+  const isVhostSni = toolId === 'VhostSni'
+  const hasUserInputs = isPortScanner || isNmap || isHttpx || isResourceEnum || isArjun || isGau || isParamSpider || isSecurityChecks || isShodan || isOsintEnrichment || isGraphql || isSubdomainTakeover || isVhostSni
+  const hasIpInput = isPortScanner || isNmap || isHttpx || isSecurityChecks || isShodan || isOsintEnrichment || isVhostSni
+  const hasSubdomainInput = toolId === 'Naabu' || isHttpx || isGau || isParamSpider || isSecurityChecks || isSubdomainTakeover || isVhostSni
   const hasPortInput = isNmap || isHttpx
   // GraphqlScan's SECTION_INPUT_MAP = [BaseURL, Endpoint]. Per PROMPT.ADD_PARTIAL_RECON.md,
   // BaseURL-accepting tools get a URL textarea; Endpoint is graph-only (never manually entered).
@@ -578,6 +586,12 @@ export function PartialReconModal({
       size="default"
       closeOnOverlayClick={false}
       closeOnEscape={false}
+      headerActions={toolId ? (
+        <WikiInfoButton
+          target={toolId}
+          title={`Open ${WORKFLOW_TOOLS.find(t => t.id === toolId)?.label || toolId} wiki page`}
+        />
+      ) : null}
     >
       <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
         {/* Input / Output flow */}

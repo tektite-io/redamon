@@ -1,6 +1,7 @@
 'use client'
 
 import type { Project } from '@prisma/client'
+import { WikiInfoButton } from '@/components/ui/WikiInfoButton'
 import styles from '../ProjectForm.module.css'
 
 type FormData = Omit<Project, 'id' | 'userId' | 'createdAt' | 'updatedAt' | 'user'>
@@ -37,7 +38,10 @@ const CHECKBOX_LABEL_STYLE: React.CSSProperties = {
 
 export function PathTraversalSection({ data, updateField }: PathTraversalSectionProps) {
   return (
-    <div style={{ padding: 'var(--space-3) var(--space-4)' }}>
+    <div style={{ padding: 'var(--space-3) var(--space-4)', position: 'relative' }}>
+      <div style={{ position: 'absolute', top: 8, right: 16 }}>
+        <WikiInfoButton target="https://github.com/samugit83/redamon/wiki/Agent-Skills" title="Open Agent Skills wiki page" />
+      </div>
       <p className={styles.sectionDescription} style={{ marginBottom: 'var(--space-4)' }}>
         Configure which Path Traversal / LFI / RFI sub-workflows to inject into the agent
         prompt and tune probe parameters. Disable sub-sections you don&apos;t want for this engagement.

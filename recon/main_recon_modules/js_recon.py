@@ -603,6 +603,33 @@ def run_js_recon(combined_result: dict, settings: dict) -> dict:
     print("[*][JsRecon] JS Recon Scanner -- Starting")
     print("=" * 60)
 
+    from recon.helpers import print_effective_settings
+    print_effective_settings(
+        "JsRecon",
+        settings,
+        keys=[
+            ("JS_RECON_MAX_FILES", "File collection"),
+            ("JS_RECON_CONCURRENCY", "Performance"),
+            ("JS_RECON_TIMEOUT", "Performance"),
+            ("JS_RECON_UPLOADED_FILES", "File collection"),
+            ("JS_RECON_INCLUDE_CHUNKS", "Inclusion filters"),
+            ("JS_RECON_INCLUDE_FRAMEWORK_JS", "Inclusion filters"),
+            ("JS_RECON_INCLUDE_ARCHIVED_JS", "Inclusion filters"),
+            ("JS_RECON_REGEX_PATTERNS", "Analysis modules"),
+            ("JS_RECON_SOURCE_MAPS", "Analysis modules"),
+            ("JS_RECON_DEPENDENCY_CHECK", "Analysis modules"),
+            ("JS_RECON_EXTRACT_ENDPOINTS", "Analysis modules"),
+            ("JS_RECON_FRAMEWORK_DETECT", "Analysis modules"),
+            ("JS_RECON_DOM_SINKS", "Analysis modules"),
+            ("JS_RECON_DEV_COMMENTS", "Analysis modules"),
+            ("JS_RECON_MIN_CONFIDENCE", "Filtering"),
+            ("JS_RECON_CUSTOM_PATTERNS", "Filtering"),
+            ("JS_RECON_CUSTOM_FRAMEWORKS", "Filtering"),
+            ("JS_RECON_VALIDATE_KEYS", "Validation"),
+            ("JS_RECON_VALIDATION_TIMEOUT", "Validation"),
+        ],
+    )
+
     try:
         # 1. Load uploaded JS files (manual uploads from UI)
         project_id = combined_result.get('metadata', {}).get('project_id', '')

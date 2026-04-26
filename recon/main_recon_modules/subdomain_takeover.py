@@ -75,6 +75,36 @@ def run_subdomain_takeover(
         recon_data["subdomain_takeover"] = _empty_result(reason="disabled")
         return recon_data
 
+    from recon.helpers import print_effective_settings
+    print_effective_settings(
+        "Takeover",
+        settings,
+        keys=[
+            ("SUBDOMAIN_TAKEOVER_ENABLED", "Toggle"),
+            ("TAKEOVER_CONFIDENCE_THRESHOLD", "Scoring"),
+            ("TAKEOVER_MANUAL_REVIEW_AUTO_PUBLISH", "Scoring"),
+            ("SUBJACK_ENABLED", "Subjack layer"),
+            ("SUBJACK_THREADS", "Subjack layer"),
+            ("SUBJACK_TIMEOUT", "Subjack layer"),
+            ("SUBJACK_SSL", "Subjack layer"),
+            ("SUBJACK_ALL", "Subjack layer"),
+            ("SUBJACK_CHECK_NS", "Subjack layer"),
+            ("SUBJACK_CHECK_AR", "Subjack layer"),
+            ("SUBJACK_CHECK_MAIL", "Subjack layer"),
+            ("SUBJACK_RUN_TIMEOUT", "Subjack layer"),
+            ("NUCLEI_TAKEOVERS_ENABLED", "Nuclei layer"),
+            ("NUCLEI_DOCKER_IMAGE", "Nuclei layer"),
+            ("TAKEOVER_SEVERITY", "Nuclei layer"),
+            ("TAKEOVER_RATE_LIMIT", "Nuclei layer"),
+            ("NUCLEI_TAKEOVER_RUN_TIMEOUT", "Nuclei layer"),
+            ("BADDNS_ENABLED", "BadDNS layer"),
+            ("BADDNS_DOCKER_IMAGE", "BadDNS layer"),
+            ("BADDNS_MODULES", "BadDNS layer"),
+            ("BADDNS_NAMESERVERS", "BadDNS layer"),
+            ("BADDNS_RUN_TIMEOUT", "BadDNS layer"),
+        ],
+    )
+
     subjack_enabled = settings.get("SUBJACK_ENABLED", True)
     nuclei_takeovers_enabled = settings.get("NUCLEI_TAKEOVERS_ENABLED", True)
     confidence_threshold = int(settings.get("TAKEOVER_CONFIDENCE_THRESHOLD", 60))

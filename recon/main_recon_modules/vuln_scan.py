@@ -289,6 +289,47 @@ def run_vuln_scan(recon_data: dict, output_file: Path = None, settings: dict = N
         }
 
     if NUCLEI_ENABLED:
+        from recon.helpers import print_effective_settings
+        print_effective_settings(
+            "Nuclei",
+            settings,
+            keys=[
+                ("NUCLEI_ENABLED", "Toggle"),
+                ("NUCLEI_DOCKER_IMAGE", "Image"),
+                ("NUCLEI_SEVERITY", "Severity & templates"),
+                ("NUCLEI_TEMPLATES", "Severity & templates"),
+                ("NUCLEI_EXCLUDE_TEMPLATES", "Severity & templates"),
+                ("NUCLEI_TAGS", "Severity & templates"),
+                ("NUCLEI_EXCLUDE_TAGS", "Severity & templates"),
+                ("NUCLEI_CUSTOM_TEMPLATES", "Severity & templates"),
+                ("NUCLEI_SELECTED_CUSTOM_TEMPLATES", "Severity & templates"),
+                ("NUCLEI_DAST_MODE", "Advanced modes"),
+                ("NUCLEI_NEW_TEMPLATES_ONLY", "Advanced modes"),
+                ("NUCLEI_HEADLESS", "Advanced modes"),
+                ("NUCLEI_RATE_LIMIT", "Performance"),
+                ("NUCLEI_BULK_SIZE", "Performance"),
+                ("NUCLEI_CONCURRENCY", "Performance"),
+                ("NUCLEI_TIMEOUT", "Performance"),
+                ("NUCLEI_RETRIES", "Performance"),
+                ("NUCLEI_SYSTEM_RESOLVERS", "Network"),
+                ("NUCLEI_FOLLOW_REDIRECTS", "Network"),
+                ("NUCLEI_MAX_REDIRECTS", "Network"),
+                ("NUCLEI_INTERACTSH", "Network"),
+                ("NUCLEI_AUTO_UPDATE_TEMPLATES", "Templates lifecycle"),
+                ("NUCLEI_SCAN_ALL_IPS", "Targeting"),
+                ("KATANA_DEPTH", "Targeting"),
+                ("CVE_LOOKUP_ENABLED", "CVE enrichment"),
+                ("CVE_LOOKUP_SOURCE", "CVE enrichment"),
+                ("CVE_LOOKUP_MAX_CVES", "CVE enrichment"),
+                ("CVE_LOOKUP_MIN_CVSS", "CVE enrichment"),
+                ("VULNERS_API_KEY", "CVE enrichment credentials"),
+                ("NVD_API_KEY", "CVE enrichment credentials"),
+                ("VULNERS_KEY_ROTATOR", "CVE enrichment credentials"),
+                ("NVD_KEY_ROTATOR", "CVE enrichment credentials"),
+                ("USE_TOR_FOR_RECON", "Anonymity"),
+            ],
+        )
+
         # Docker mode is required
         if not is_docker_installed():
             print("[!][Nuclei] Docker not found. Please install Docker to use Nuclei scanner.")

@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { ChevronDown, Search, Upload, Trash2, Loader2, FileText, HelpCircle, Play } from 'lucide-react'
-import { Toggle, Modal } from '@/components/ui'
+import { Toggle, Modal, WikiInfoButton } from '@/components/ui'
 import type { Project } from '@prisma/client'
 import styles from '../ProjectForm.module.css'
 import { NodeInfoTooltip } from '../NodeInfoTooltip'
@@ -393,6 +393,7 @@ export function JsReconSection({ data, updateField, projectId, mode, onRun }: Js
           <Search size={16} />
           JS Recon Scanner
           <NodeInfoTooltip section="JsRecon" />
+          <WikiInfoButton target="JsRecon" />
           <span className={styles.badgeActive}>Active</span>
         </h2>
         <div className={styles.sectionHeaderRight}>

@@ -1199,7 +1199,7 @@ Common properties (all sources):
 - id (string): unique identifier
 - name (string): vulnerability name
 - severity (string): "critical", "high", "medium", "low", "info" (lowercase!)
-- source (string): **"nuclei"** (DAST/web), **"gvm"** (network/OpenVAS), **"security_check"**, **"netlas"** (passive NVD-based), **"graphql_scan"** (GraphQL security testing), or **"takeover_scan"** (subdomain takeover via Subjack + Nuclei takeover templates)
+- source (string): **"nuclei"** (DAST/web), **"gvm"** (network/OpenVAS), **"security_check"**, **"netlas"** (passive NVD-based), **"graphql_scan"** (GraphQL security testing), **"takeover_scan"** (subdomain takeover via Subjack + Nuclei takeover templates), or **"vhost_sni_enum"** (hidden virtual host / SNI routing anomalies via curl)
 - description (string): vulnerability description
 - cvss_score (float): 0.0 to 10.0
 
@@ -1269,6 +1269,26 @@ Subdomain-takeover properties (source="takeover_scan"):
 - first_seen / last_seen (strings): ISO timestamps
 - id pattern: `takeover_<sha1-hex16>` where the hash is over `hostname+takeover_provider+takeover_method` — deterministic, MERGE-safe across re-scans
 - Typical query: "list confirmed Heroku takeovers" → `MATCH (s:Subdomain)-[:HAS_VULNERABILITY]->(v:Vulnerability {source: 'takeover_scan'}) WHERE v.takeover_provider = 'heroku' AND v.verdict = 'confirmed' RETURN s.name AS subdomain, v.cname_target, v.confidence, v.sources`
+
+VHost & SNI properties (source="vhost_sni_enum"):
+- type (string): "hidden_vhost" (L7 anomaly only), "hidden_sni_route" (L4/SNI anomaly only), or "host_header_bypass" (L7 vs L4 disagreement — proxy bypass primitive)
+- hostname (string): the hidden virtual host FQDN that was discovered (e.g. "admin.acme.com")
+- ip (string): the IP address that hosts the hidden vhost
+- port (integer): TCP port tested (commonly 443, also 80, 8443, 8080, etc.)
+- scheme (string): "http" | "https"
+- layer (string): "L7" (HTTP Host header trick caught it), "L4" (TLS SNI trick caught it), or "both" (both layers anomalous)
+- baseline_status (integer): HTTP status code returned by the raw IP request (no Host override) used as comparison baseline
+- baseline_size (integer): body size in bytes for the baseline response
+- observed_status (integer): HTTP status code returned when the host/SNI lie was applied
+- observed_size (integer): body size in bytes for the observed response
+- size_delta (integer): observed_size - baseline_size (signed)
+- internal_pattern_match (string, nullable): matched internal-keyword in hostname (e.g. "admin", "jenkins", "k8s") that triggered severity escalation, or null
+- severity (string): "high" (L7 vs L4 disagreement, proxy bypass), "medium" (hidden vhost matching internal-keyword), "low" (different status code), "info" (size delta only)
+- description (string): human-readable explanation
+- id pattern: `vhost_sni_{hostname}_{ip}_{port}_{layer}` — deterministic, MERGE-safe
+- Subdomain enrichment (set on (:Subdomain) nodes flagged as hidden vhosts): vhost_tested (bool), vhost_hidden (bool), vhost_routing_layer ("L7"|"L4"|"both"), vhost_status_code (int), vhost_size_delta (int), sni_routed (bool), vhost_tested_at (ISO ts)
+- IP enrichment (set on (:IP) nodes that have been probed): vhost_sni_tested (bool), vhost_baseline_status (int), vhost_baseline_size (int), vhost_candidates_tested (int — total candidate hostnames probed against this IP), vhost_ports_tested (int — number of (port, scheme) pairs that produced a usable baseline), hosts_hidden_vhosts (bool), hidden_vhost_count (int), is_reverse_proxy (bool), vhost_sni_tested_at (ISO ts)
+- Typical query: "list hidden admin panels uncovered by vhost enumeration" → `MATCH (s:Subdomain)-[:HAS_VULNERABILITY]->(v:Vulnerability {source: 'vhost_sni_enum'}) WHERE v.internal_pattern_match IS NOT NULL RETURN s.name AS hostname, v.ip, v.port, v.layer, v.severity, v.internal_pattern_match`
 
 **CVE** - Known CVE entries (linked to Technologies)
 - id (string): "CVE-2021-41773", "CVE-2021-44228"
