@@ -110,6 +110,8 @@ We maintain a public **[Project Board](https://github.com/users/samugit83/projec
 ### Prerequisites
 
 - [Docker](https://docs.docker.com/get-docker/) & Docker Compose v2+
+  - **macOS:** Docker Desktop, with Memory raised to at least 4 GB (8 GB with `--gvm`) in Settings → Resources. Clone under `~/` so the path is inside the default File Sharing list.
+  - **Windows:** Docker Desktop with the WSL2 backend, run from inside the WSL2 filesystem (`~/`), not `/mnt/c/`.
 
 That's it. No Node.js, Python, or security tools needed on your host.
 

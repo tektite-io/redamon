@@ -19,6 +19,10 @@ from langchain_neo4j import Neo4jGraph
 
 from project_settings import get_setting, is_tool_allowed_in_phase
 from prompts import TEXT_TO_CYPHER_SYSTEM
+from graph_db.tenant_filter import (
+    find_disallowed_write_operation as _shared_find_disallowed_write_operation,
+    inject_tenant_filter as _shared_inject_tenant_filter,
+)
 
 if TYPE_CHECKING:
     from langchain_core.language_models import BaseChatModel
@@ -244,17 +248,8 @@ class Neo4jToolManager:
         r'\b(MATCH|OPTIONAL\s+MATCH|WITH|UNWIND|RETURN|CALL|SHOW)\b',
         re.IGNORECASE,
     )
-    _WRITE_CLAUSE_RE = re.compile(
-        r'\b(CREATE|MERGE|DELETE|DETACH\s+DELETE|SET|REMOVE|DROP|ALTER|'
-        r'LOAD\s+CSV|START\s+DATABASE|STOP\s+DATABASE|GRANT|DENY|REVOKE|'
-        r'ENABLE\s+SERVER|DEALLOCATE|REALLOCATE|TERMINATE)\b',
-        re.IGNORECASE,
-    )
-    _WRITE_PROCEDURE_RE = re.compile(
-        r'\bCALL\s+(apoc\.(create|merge|refactor|periodic|trigger|schema)|'
-        r'apoc\.cypher\.(runWrite|doIt)|dbms\.)\b',
-        re.IGNORECASE,
-    )
+    # Write-clause and write-procedure regexes live in graph_db.tenant_filter so
+    # the kali-sandbox CLI (redagraph) can share the same enforcement.
 
     def __init__(self, uri: str, user: str, password: str, llm: "BaseChatModel"):
         self.uri = uri
@@ -301,70 +296,10 @@ class Neo4jToolManager:
 
     @classmethod
     def _find_disallowed_write_operation(cls, cypher: str) -> Optional[str]:
-        """Return a disallowed write clause/procedure name, or None for read-only Cypher."""
-        proc_match = cls._WRITE_PROCEDURE_RE.search(cypher)
-        if proc_match:
-            return proc_match.group(1)
-
-        match = cls._WRITE_CLAUSE_RE.search(cypher)
-        if match:
-            return re.sub(r'\s+', ' ', match.group(1).upper())
-
-        return None
+        return _shared_find_disallowed_write_operation(cypher)
 
     def _inject_tenant_filter(self, cypher: str, user_id: str, project_id: str) -> str:
-        """
-        Inject mandatory user_id and project_id filters into a Cypher query.
-
-        This ensures all queries are scoped to the current user's project,
-        preventing cross-tenant data access.
-
-        Strategy: Add tenant properties directly into each node pattern as inline
-        property filters. This ensures filters are always in scope regardless of
-        WITH clauses or query structure.
-
-        Example:
-            MATCH (d:Domain {name: "example.com"})
-        becomes:
-            MATCH (d:Domain {name: "example.com", user_id: $tenant_user_id, project_id: $tenant_project_id})
-
-        Args:
-            cypher: The AI-generated Cypher query
-            user_id: Current user's ID
-            project_id: Current project's ID
-
-        Returns:
-            Modified Cypher query with tenant filters applied
-        """
-        tenant_props = "user_id: $tenant_user_id, project_id: $tenant_project_id"
-
-        def add_tenant_to_node(match: re.Match) -> str:
-            """Add tenant properties to a node pattern."""
-            var_name = match.group(1)
-            label = match.group(2)
-            existing_props_content = match.group(3)  # Content INSIDE braces (without braces), or None
-
-            if existing_props_content is not None:
-                # Has existing properties - merge with tenant props
-                existing_props_content = existing_props_content.strip()
-                if existing_props_content:
-                    # Append tenant props after existing ones
-                    new_props = f"{{{existing_props_content}, {tenant_props}}}"
-                else:
-                    new_props = f"{{{tenant_props}}}"
-                return f"({var_name}:{label} {new_props})"
-            else:
-                # No existing properties, add them
-                return f"({var_name}:{label} {{{tenant_props}}})"
-
-        # Pattern matches: (variable:Label) or (variable:Label {props})
-        # Captures: 1=variable, 2=label, 3=optional content INSIDE braces (without braces)
-        # Uses a non-greedy match for the props content
-        node_pattern = r'\((\w+):(\w+)(?:\s*\{([^}]*)\})?\)'
-
-        result = re.sub(node_pattern, add_tenant_to_node, cypher)
-
-        return result
+        return _shared_inject_tenant_filter(cypher, user_id, project_id)
 
     async def _generate_cypher(
         self,
@@ -450,7 +385,7 @@ Incorporate the filter pattern into your MATCH clauses so results are scoped app
 - For comprehensive requests, use multiple MATCH clauses or OPTIONAL MATCH, then return all data in ONE RETURN
 - NEVER create multiple queries or multiple RETURN statements
 - Example structure for comprehensive queries:
-  MATCH (d:Domain {name: 'example.com'})
+  MATCH (d:Domain {{name: 'example.com'}})
   OPTIONAL MATCH (d)-[:HAS_SUBDOMAIN]->(s:Subdomain)
   OPTIONAL MATCH (s)-[:RESOLVES_TO]->(i:IP)
   OPTIONAL MATCH (i)-[:HAS_PORT]->(p:Port)

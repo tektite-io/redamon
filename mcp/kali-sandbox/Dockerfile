@@ -177,6 +177,9 @@ ENV PATH="/opt/venv/bin:$PATH"
 COPY requirements.txt /tmp/requirements.txt
 RUN pip install --no-cache-dir -r /tmp/requirements.txt
 
+# Neo4j driver for the redagraph CLI (tenant-scoped graph queries from the shell)
+RUN pip install --no-cache-dir neo4j
+
 # Install API security testing tools (Python-based)
 # jwt_tool - JWT exploitation toolkit (alg:none, key confusion, cracking)
 # Source: https://github.com/ticarpi/jwt_tool (GPL-3.0)
@@ -333,6 +336,15 @@ RUN mkdir -p /opt/mcp_servers /opt/output
 
 # Copy MCP servers
 COPY servers/ /opt/mcp_servers/
+
+# Expose redagraph CLI on PATH (script lives in the volume-mounted servers dir,
+# so iteration does not require a rebuild — only the symlink does).
+RUN chmod +x /opt/mcp_servers/redagraph.py \
+    && ln -sf /opt/mcp_servers/redagraph.py /usr/local/bin/redagraph
+
+# RedAmon MOTD hint shown after the Kali login banner.
+COPY kali-sandbox/redamon-motd.sh /etc/profile.d/zz-redamon-motd.sh
+RUN chmod 0644 /etc/profile.d/zz-redamon-motd.sh
 
 # Copy and set entrypoint script
 COPY kali-sandbox/entrypoint.sh /opt/entrypoint.sh

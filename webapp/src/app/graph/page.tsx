@@ -1296,7 +1296,7 @@ export default function GraphPage() {
               onKillJob={activeSessions.killJob}
             />
           ) : activeView === 'terminal' ? (
-            <KaliTerminal />
+            <KaliTerminal userId={userId} projectId={projectId} />
           ) : activeView === 'roe' ? (
             <RoeViewer
               projectId={projectId || ''}

@@ -1060,6 +1060,10 @@ class TextToCypherRequest(BaseModel):
     question: str
     user_id: str
     project_id: str
+    # Default True for backward compatibility with the webapp graph view, which
+    # needs whole nodes/relationships to render. CLI callers (e.g. redagraph)
+    # should send False so the LLM is free to return scalar properties.
+    for_graph_view: bool = True
 
 
 @app.post("/text-to-cypher", tags=["Graph"])
@@ -1176,13 +1180,13 @@ async def text_to_cypher(body: TextToCypherRequest):
     for attempt in range(max_retries):
         try:
             if attempt == 0:
-                cypher = await manager._generate_cypher(body.question, for_graph_view=True)
+                cypher = await manager._generate_cypher(body.question, for_graph_view=body.for_graph_view)
             else:
                 cypher = await manager._generate_cypher(
                     body.question,
                     previous_error=last_error,
                     previous_cypher=last_cypher,
-                    for_graph_view=True,
+                    for_graph_view=body.for_graph_view,
                 )
 
             # Reject write operations -- data filters are read-only
