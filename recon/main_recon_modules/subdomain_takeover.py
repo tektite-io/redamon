@@ -42,6 +42,7 @@ from recon.helpers import (
     parse_nuclei_finding,
     provider_from_cname,
     pull_nuclei_docker_image,
+    resolve_cname_target,
     score_finding,
 )
 
@@ -83,6 +84,7 @@ def run_subdomain_takeover(
             ("SUBDOMAIN_TAKEOVER_ENABLED", "Toggle"),
             ("TAKEOVER_CONFIDENCE_THRESHOLD", "Scoring"),
             ("TAKEOVER_MANUAL_REVIEW_AUTO_PUBLISH", "Scoring"),
+            ("TAKEOVER_CNAME_VALIDATION_ENABLED", "Scoring"),
             ("SUBJACK_ENABLED", "Subjack layer"),
             ("SUBJACK_THREADS", "Subjack layer"),
             ("SUBJACK_TIMEOUT", "Subjack layer"),
@@ -184,17 +186,45 @@ def run_subdomain_takeover(
                 print(f"[!][Takeover] BadDNS scan failed: {e}")
 
         # --------------------------------------------------------------
-        # 3. Enrich with CNAME resolution where provider unknown
+        # 3. Enrich with CNAME resolution + live-target validation
         # --------------------------------------------------------------
+        # Two false-positive suppressors:
+        #   (a) provider_mismatch -- subjack's body-content fingerprints can
+        #       collide on generic 404s (e.g. flagging instatus.com as
+        #       Gemfury). When the actual CNAME maps to a different known
+        #       provider, mark the disagreement so the scorer can demote.
+        #   (b) cname_alive -- if the CNAME target resolves to live A/AAAA
+        #       records and the provider is NOT in AUTO_EXPLOITABLE_PROVIDERS,
+        #       the SaaS edge is up serving the legitimate customer. Auto-
+        #       exploitable providers wildcard-resolve at the SaaS edge even
+        #       when dangling, so we exempt them from this rule (the scorer
+        #       enforces the exemption).
         dns_data = recon_data.get("dns", {})
+        cname_validation = bool(settings.get("TAKEOVER_CNAME_VALIDATION_ENABLED", True))
         for n in normalized:
-            if n["takeover_provider"] in ("unknown", None):
-                cname = _lookup_cname_from_dns(dns_data, n["hostname"])
-                if cname:
-                    n["cname_target"] = n.get("cname_target") or cname
-                    detected = provider_from_cname(cname)
-                    if detected:
-                        n["takeover_provider"] = detected
+            cname = n.get("cname_target") or _lookup_cname_from_dns(dns_data, n["hostname"])
+            if not cname:
+                continue
+            n["cname_target"] = cname
+            cname_provider = provider_from_cname(cname)
+            current_provider = (n.get("takeover_provider") or "").lower()
+            if current_provider in ("", "unknown", "none"):
+                if cname_provider:
+                    n["takeover_provider"] = cname_provider
+            elif cname_provider and cname_provider != current_provider:
+                n["provider_mismatch"] = True
+                n["cname_provider"] = cname_provider
+            if cname_validation:
+                try:
+                    probe = resolve_cname_target(cname)
+                    if probe.get("resolves"):
+                        n["cname_alive"] = True
+                    if probe.get("nxdomain"):
+                        n["cname_nxdomain"] = True
+                except Exception as e:
+                    # Probe failure is non-fatal -- leave fields unset so the
+                    # scorer treats DNS state as unknown.
+                    print(f"[!][Takeover] CNAME probe failed for {cname}: {e}")
 
         # --------------------------------------------------------------
         # 4. Dedupe + score

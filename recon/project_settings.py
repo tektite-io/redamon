@@ -186,6 +186,7 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     'TAKEOVER_CONFIDENCE_THRESHOLD': 60,
     'TAKEOVER_RATE_LIMIT': 50,
     'TAKEOVER_MANUAL_REVIEW_AUTO_PUBLISH': False,
+    'TAKEOVER_CNAME_VALIDATION_ENABLED': True,
     # BadDNS (AGPL-3.0, isolated sidecar — disabled by default, opt-in)
     'BADDNS_ENABLED': False,
     'BADDNS_DOCKER_IMAGE': 'redamon-baddns:latest',
