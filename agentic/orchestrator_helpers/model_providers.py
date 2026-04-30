@@ -155,6 +155,63 @@ async def fetch_openrouter_models(api_key: str = "") -> list[dict]:
 
 
 # ---------------------------------------------------------------------------
+# DeepSeek
+# ---------------------------------------------------------------------------
+# Curated fallback used if /v1/models is unreachable. Keep ids in sync with the
+# DeepSeek docs (https://api-docs.deepseek.com/quick_start/pricing).
+_DEEPSEEK_FALLBACK_MODELS: list[tuple[str, str]] = [
+    ("deepseek-v4-pro", "DeepSeek V4 Pro"),
+    ("deepseek-v4-flash", "DeepSeek V4 Flash"),
+    ("deepseek-chat", "DeepSeek Chat"),
+    ("deepseek-reasoner", "DeepSeek Reasoner"),
+]
+
+
+async def fetch_deepseek_models(api_key: str = "") -> list[dict]:
+    """Fetch chat models from DeepSeek's OpenAI-compatible /v1/models endpoint.
+
+    Falls back to a hardcoded curated list if the endpoint is unreachable or
+    returns no entries — DeepSeek occasionally rate-limits /v1/models even
+    when chat completions still work.
+    """
+    if not api_key:
+        return []
+
+    discovered: list[dict] = []
+    try:
+        async with httpx.AsyncClient(timeout=15) as client:
+            resp = await client.get(
+                "https://api.deepseek.com/v1/models",
+                headers={"Authorization": f"Bearer {api_key}"},
+            )
+            resp.raise_for_status()
+
+        data = resp.json().get("data", [])
+        for m in data:
+            mid = m.get("id", "")
+            if not mid.startswith("deepseek-"):
+                continue
+            discovered.append(_model(
+                id=f"deepseek/{mid}",
+                name=mid,
+                description="DeepSeek",
+            ))
+    except Exception as e:
+        logger.warning(f"DeepSeek /v1/models unreachable, using fallback list: {e}")
+
+    if not discovered:
+        for mid, mname in _DEEPSEEK_FALLBACK_MODELS:
+            discovered.append(_model(
+                id=f"deepseek/{mid}",
+                name=mname,
+                description="DeepSeek",
+            ))
+
+    discovered.sort(key=lambda m: m["id"], reverse=True)
+    return discovered
+
+
+# ---------------------------------------------------------------------------
 # AWS Bedrock
 # ---------------------------------------------------------------------------
 async def fetch_bedrock_models(
@@ -257,6 +314,8 @@ async def fetch_all_models(
             tasks_db[f"Anthropic ({pname})"] = fetch_anthropic_models(api_key=p.get("apiKey", ""))
         elif ptype == "openrouter":
             tasks_db[f"OpenRouter ({pname})"] = fetch_openrouter_models(api_key=p.get("apiKey", ""))
+        elif ptype == "deepseek":
+            tasks_db[f"DeepSeek ({pname})"] = fetch_deepseek_models(api_key=p.get("apiKey", ""))
         elif ptype == "bedrock":
             tasks_db[f"AWS Bedrock ({pname})"] = fetch_bedrock_models(
                 region=p.get("awsRegion", "us-east-1"),

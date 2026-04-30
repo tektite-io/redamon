@@ -56,11 +56,12 @@ export const OPENAI_COMPAT_PRESETS: LlmProviderPreset[] = [
 ]
 
 export const PROVIDER_TYPES = [
-  { id: 'openai', name: 'OpenAI', description: 'Direct OpenAI API access', icon: '🟢' },
-  { id: 'anthropic', name: 'Anthropic', description: 'Direct Anthropic API access', icon: '🟠' },
-  { id: 'openrouter', name: 'OpenRouter', description: 'Access 200+ models via OpenRouter', icon: '🔵' },
-  { id: 'bedrock', name: 'AWS Bedrock', description: 'AWS Bedrock foundation models', icon: '🟡' },
-  { id: 'openai_compatible', name: 'OpenAI-Compatible', description: 'Any OpenAI-compatible endpoint (Ollama, vLLM, Groq, etc.)', icon: '⚙️' },
+  { id: 'openai', name: 'OpenAI', description: 'Direct OpenAI API access', icon: '🟢', logo: '/provider-logos/openai.png' },
+  { id: 'anthropic', name: 'Anthropic', description: 'Direct Anthropic API access', icon: '🟠', logo: '/provider-logos/anthropic.png' },
+  { id: 'openrouter', name: 'OpenRouter', description: 'Access 200+ models via OpenRouter', icon: '🔵', logo: '/provider-logos/openrouter.png' },
+  { id: 'deepseek', name: 'DeepSeek', description: 'Direct DeepSeek API access', icon: '🐋', logo: '/provider-logos/deepseek.png' },
+  { id: 'bedrock', name: 'AWS Bedrock', description: 'AWS Bedrock foundation models', icon: '🟡', logo: '/provider-logos/aws.png' },
+  { id: 'openai_compatible', name: 'OpenAI-Compatible', description: 'Any OpenAI-compatible endpoint (Ollama, vLLM, Groq, etc.)', icon: '⚙️', logo: null },
 ] as const
 
 export type ProviderType = typeof PROVIDER_TYPES[number]['id']

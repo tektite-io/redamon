@@ -458,12 +458,14 @@ class AgentOrchestrator:
         anthropic_p = _resolve_provider_key(user_providers, "anthropic")
         openrouter_p = _resolve_provider_key(user_providers, "openrouter")
         bedrock_p = _resolve_provider_key(user_providers, "bedrock")
+        deepseek_p = _resolve_provider_key(user_providers, "deepseek")
 
         self.llm = setup_llm(
             self.model_name,
             openai_api_key=(openai_p or {}).get("apiKey"),
             anthropic_api_key=(anthropic_p or {}).get("apiKey"),
             openrouter_api_key=(openrouter_p or {}).get("apiKey"),
+            deepseek_api_key=(deepseek_p or {}).get("apiKey"),
             aws_access_key_id=(bedrock_p or {}).get("awsAccessKeyId"),
             aws_secret_access_key=(bedrock_p or {}).get("awsSecretKey"),
             aws_region=(bedrock_p or {}).get("awsRegion") or "us-east-1",

@@ -9,7 +9,8 @@ RUN apk add --no-cache libc6-compat
 WORKDIR /app
 
 COPY package.json package-lock.json* ./
-RUN npm ci --only=production && npm cache clean --force
+COPY prisma ./prisma
+RUN npm ci --no-audit --no-fund && npm cache clean --force
 
 # Stage 2: Builder
 FROM node:22-alpine AS builder
@@ -24,8 +25,9 @@ ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_ENV=production
 # Dummy DATABASE_URL for Prisma client generation at build time (not used at runtime)
 ENV DATABASE_URL="postgresql://build:build@localhost:5432/build"
+ENV NODE_OPTIONS=--max-old-space-size=4096
 
-RUN npm ci && npm run build
+RUN npm run build
 
 # Stage 3: Runner (Production)
 FROM node:22-alpine AS runner

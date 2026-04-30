@@ -41,6 +41,9 @@ function resolveProviderType(model: string): { providerType: string; modelId: st
   if (model.startsWith('bedrock/')) {
     return { providerType: 'bedrock', modelId: model.slice('bedrock/'.length) }
   }
+  if (model.startsWith('deepseek/')) {
+    return { providerType: 'deepseek', modelId: model.slice('deepseek/'.length) }
+  }
   if (model.startsWith('claude-')) {
     return { providerType: 'anthropic', modelId: model }
   }
@@ -208,6 +211,9 @@ export async function POST(request: NextRequest) {
       let baseUrl = provider.baseUrl || 'https://api.openai.com/v1'
       if (providerType === 'openrouter' && !provider.baseUrl) {
         baseUrl = 'https://openrouter.ai/api/v1'
+      }
+      if (providerType === 'deepseek' && !provider.baseUrl) {
+        baseUrl = 'https://api.deepseek.com/v1'
       }
       // Remove trailing slash
       baseUrl = baseUrl.replace(/\/+$/, '')

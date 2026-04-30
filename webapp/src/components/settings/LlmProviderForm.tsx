@@ -10,6 +10,7 @@ import styles from './Settings.module.css'
 interface LlmProviderFormProps {
   userId: string
   provider?: ProviderData | null
+  existingProviderTypes?: string[]
   onSave: () => void
   onCancel: () => void
 }
@@ -47,7 +48,7 @@ const EMPTY_PROVIDER: ProviderData = {
   awsSecretKey: '',
 }
 
-export function LlmProviderForm({ userId, provider, onSave, onCancel }: LlmProviderFormProps) {
+export function LlmProviderForm({ userId, provider, existingProviderTypes = [], onSave, onCancel }: LlmProviderFormProps) {
   const isEditing = !!provider?.id
   const toast = useToast()
   const [form, setForm] = useState<ProviderData>(() => provider || { ...EMPTY_PROVIDER })
@@ -153,17 +154,29 @@ export function LlmProviderForm({ userId, provider, onSave, onCancel }: LlmProvi
       <div className={styles.formSection}>
         <h3 className={styles.formTitle}>Choose Provider Type</h3>
         <div className={styles.providerTypeGrid}>
-          {PROVIDER_TYPES.map(pt => (
-            <button
-              key={pt.id}
-              className={styles.providerTypeCard}
-              onClick={() => selectType(pt.id)}
-            >
-              <span className={styles.providerTypeIcon}>{pt.icon}</span>
-              <span className={styles.providerTypeName}>{pt.name}</span>
-              <span className={styles.providerTypeDesc}>{pt.description}</span>
-            </button>
-          ))}
+          {PROVIDER_TYPES.map(pt => {
+            const alreadyAdded = pt.id !== 'openai_compatible' && existingProviderTypes.includes(pt.id)
+            return (
+              <button
+                key={pt.id}
+                className={styles.providerTypeCard}
+                onClick={() => selectType(pt.id)}
+                disabled={alreadyAdded}
+                title={alreadyAdded ? `${pt.name} already configured` : undefined}
+                style={alreadyAdded ? { opacity: 0.45, cursor: 'not-allowed' } : undefined}
+              >
+                <span className={styles.providerTypeIcon}>
+                  {pt.logo
+                    ? <img src={pt.logo} alt={pt.name} className={styles.providerTypeLogo} style={{ width: 40, height: 40, objectFit: 'contain' }} />
+                    : pt.icon}
+                </span>
+                <span className={styles.providerTypeName}>
+                  {pt.name}{alreadyAdded ? ' (added)' : ''}
+                </span>
+                <span className={styles.providerTypeDesc}>{pt.description}</span>
+              </button>
+            )
+          })}
         </div>
         <div className={styles.formActions}>
           <button className="secondaryButton" onClick={onCancel}>Cancel</button>
@@ -174,7 +187,7 @@ export function LlmProviderForm({ userId, provider, onSave, onCancel }: LlmProvi
 
   // Step 2: Configure
   const ptype = form.providerType as ProviderType
-  const isKeyBased = ['openai', 'anthropic', 'openrouter'].includes(ptype)
+  const isKeyBased = ['openai', 'anthropic', 'openrouter', 'deepseek'].includes(ptype)
   const isBedrock = ptype === 'bedrock'
   const isCompat = ptype === 'openai_compatible'
   return (
@@ -376,7 +389,7 @@ export function LlmProviderForm({ userId, provider, onSave, onCancel }: LlmProvi
           </div>
 
           {/* SSL verify toggle */}
-          <div className="formGroup">
+          <div className="formGroup" style={{ marginTop: 'var(--space-4)' }}>
             <label className={styles.checkboxLabel}>
               <input
                 type="checkbox"

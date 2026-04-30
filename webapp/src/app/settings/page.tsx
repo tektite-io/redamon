@@ -111,6 +111,10 @@ function getProviderIcon(providerType: string): string {
   return PROVIDER_TYPES.find(p => p.id === providerType)?.icon || '⚙️'
 }
 
+function getProviderLogo(providerType: string): string | null {
+  return PROVIDER_TYPES.find(p => p.id === providerType)?.logo ?? null
+}
+
 function getProviderLabel(providerType: string): string {
   return PROVIDER_TYPES.find(p => p.id === providerType)?.name || providerType
 }
@@ -945,6 +949,7 @@ export default function SettingsPage() {
           <LlmProviderForm
             userId={userId}
             provider={editingProvider}
+            existingProviderTypes={providers.map(p => p.providerType)}
             onSave={() => {
               setShowProviderForm(false)
               setEditingProvider(null)
@@ -967,7 +972,11 @@ export default function SettingsPage() {
             <div className={styles.providerList}>
               {providers.map((p: ProviderData) => (
                 <div key={p.id} className={styles.providerCard}>
-                  <span className={styles.providerIcon}>{getProviderIcon(p.providerType)}</span>
+                  <span className={styles.providerIcon}>
+                    {getProviderLogo(p.providerType)
+                      ? <img src={getProviderLogo(p.providerType)!} alt={getProviderLabel(p.providerType)} className={styles.providerLogoImg} style={{ width: 28, height: 28, objectFit: 'contain' }} />
+                      : getProviderIcon(p.providerType)}
+                  </span>
                   <div className={styles.providerInfo}>
                     <div className={styles.providerName}>{p.name}</div>
                     <div className={styles.providerMeta}>

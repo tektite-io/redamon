@@ -32,6 +32,7 @@ def parse_model_provider(model_name: str) -> tuple[str, str]:
       - "custom/<configId>"   → ("custom", "<configId>")
       - "openrouter/<model>"  → ("openrouter", "<model>")
       - "bedrock/<model>"     → ("bedrock", "<model>")
+      - "deepseek/<model>"    → ("deepseek", "<model>")
       - "claude-*"            → ("anthropic", "claude-*")
       - anything else         → ("openai", "<model>")
 
@@ -46,6 +47,8 @@ def parse_model_provider(model_name: str) -> tuple[str, str]:
         return ("openrouter", model_name[len("openrouter/"):])
     elif model_name.startswith("bedrock/"):
         return ("bedrock", model_name[len("bedrock/"):])
+    elif model_name.startswith("deepseek/"):
+        return ("deepseek", model_name[len("deepseek/"):])
     elif model_name.startswith("claude-"):
         return ("anthropic", model_name)
     else:
@@ -58,6 +61,7 @@ def setup_llm(
     openai_api_key: str | None = None,
     anthropic_api_key: str | None = None,
     openrouter_api_key: str | None = None,
+    deepseek_api_key: str | None = None,
     openai_compat_api_key: str | None = None,
     openai_compat_base_url: str | None = None,
     aws_access_key_id: str | None = None,
@@ -159,6 +163,18 @@ def setup_llm(
             },
         )
 
+    elif provider == "deepseek":
+        if not deepseek_api_key:
+            raise ValueError(
+                f"DeepSeek API key is required for model '{model_name}'"
+            )
+        llm = ChatOpenAI(
+            model=api_model,
+            api_key=deepseek_api_key,
+            base_url="https://api.deepseek.com/v1",
+            temperature=0,
+        )
+
     elif provider == "bedrock":
         if not aws_access_key_id or not aws_secret_access_key:
             raise ValueError(
@@ -237,6 +253,7 @@ def apply_project_settings(orchestrator, project_id: str) -> None:
         anthropic_p = _resolve_provider_key(user_providers, "anthropic")
         openrouter_p = _resolve_provider_key(user_providers, "openrouter")
         bedrock_p = _resolve_provider_key(user_providers, "bedrock")
+        deepseek_p = _resolve_provider_key(user_providers, "deepseek")
 
         try:
             orchestrator.llm = setup_llm(
@@ -244,6 +261,7 @@ def apply_project_settings(orchestrator, project_id: str) -> None:
                 openai_api_key=(openai_p or {}).get("apiKey"),
                 anthropic_api_key=(anthropic_p or {}).get("apiKey"),
                 openrouter_api_key=(openrouter_p or {}).get("apiKey"),
+                deepseek_api_key=(deepseek_p or {}).get("apiKey"),
                 aws_access_key_id=(bedrock_p or {}).get("awsAccessKeyId"),
                 aws_secret_access_key=(bedrock_p or {}).get("awsSecretKey"),
                 aws_region=(bedrock_p or {}).get("awsRegion") or "us-east-1",

@@ -129,6 +129,18 @@
 .providerIcon {
   font-size: var(--text-lg);
   flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.providerLogoImg {
+  width: 28px !important;
+  height: 28px !important;
+  max-width: 28px;
+  max-height: 28px;
+  object-fit: contain;
+  display: block;
 }
 
 .providerInfo {
@@ -190,6 +202,20 @@
 
 .providerTypeIcon {
   font-size: var(--text-xl);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 32px;
+  margin-bottom: var(--space-3);
+}
+
+.providerTypeLogo {
+  width: 40px !important;
+  height: 40px !important;
+  max-width: 40px;
+  max-height: 40px;
+  object-fit: contain;
+  display: block;
 }
 
 .providerTypeName {
@@ -210,6 +236,14 @@
   border: 1px solid var(--border-default);
   border-radius: var(--radius-md);
   padding: var(--space-5);
+}
+
+.formSection :global(.formGroup) {
+  margin-bottom: var(--space-4);
+}
+
+.formSection :global(.formGroup):last-child {
+  margin-bottom: 0;
 }
 
 .formHeader {

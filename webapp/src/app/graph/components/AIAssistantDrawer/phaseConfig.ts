@@ -24,6 +24,9 @@ export function formatModelDisplay(model: string): string {
     const simplified = model.slice('bedrock/'.length).replace(/^[^.]+\./, '').replace(/-\d{8}-v\d+:\d+$/, '')
     return `${simplified} (Bedrock)`
   }
+  if (model.startsWith('deepseek/')) {
+    return `${model.slice('deepseek/'.length)} (DeepSeek)`
+  }
   return model
 }
 

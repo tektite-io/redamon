@@ -174,12 +174,14 @@ async def check_target_guardrail(body: GuardrailRequest):
                 openai_p = _resolve_provider_key(user_providers, "openai")
                 anthropic_p = _resolve_provider_key(user_providers, "anthropic")
                 openrouter_p = _resolve_provider_key(user_providers, "openrouter")
+                deepseek_p = _resolve_provider_key(user_providers, "deepseek")
 
                 orchestrator.llm = setup_llm(
                     model_name,
                     openai_api_key=(openai_p or {}).get("apiKey"),
                     anthropic_api_key=(anthropic_p or {}).get("apiKey"),
                     openrouter_api_key=(openrouter_p or {}).get("apiKey"),
+                    deepseek_api_key=(deepseek_p or {}).get("apiKey"),
                 )
                 orchestrator.model_name = model_name
                 logger.info(f"Guardrail: bootstrapped LLM with default model {model_name}")
@@ -455,12 +457,14 @@ def _setup_llm_for_endpoint(model_name: str) -> "BaseChatModel":
     anthropic_p = _resolve_provider_key(user_providers, "anthropic")
     openrouter_p = _resolve_provider_key(user_providers, "openrouter")
     bedrock_p = _resolve_provider_key(user_providers, "bedrock")
+    deepseek_p = _resolve_provider_key(user_providers, "deepseek")
 
     return setup_llm(
         model_name,
         openai_api_key=(openai_p or {}).get("apiKey"),
         anthropic_api_key=(anthropic_p or {}).get("apiKey"),
         openrouter_api_key=(openrouter_p or {}).get("apiKey"),
+        deepseek_api_key=(deepseek_p or {}).get("apiKey"),
         aws_access_key_id=(bedrock_p or {}).get("awsAccessKeyId"),
         aws_secret_access_key=(bedrock_p or {}).get("awsSecretKey"),
         aws_region=(bedrock_p or {}).get("awsRegion") or "us-east-1",
@@ -510,11 +514,13 @@ def _build_llm_for_user(user_id: Optional[str]):
     anthropic_p = _resolve_provider_key(user_providers, "anthropic")
     openrouter_p = _resolve_provider_key(user_providers, "openrouter")
     bedrock_p = _resolve_provider_key(user_providers, "bedrock")
+    deepseek_p = _resolve_provider_key(user_providers, "deepseek")
     return setup_llm(
         model_name,
         openai_api_key=(openai_p or {}).get("apiKey"),
         anthropic_api_key=(anthropic_p or {}).get("apiKey"),
         openrouter_api_key=(openrouter_p or {}).get("apiKey"),
+        deepseek_api_key=(deepseek_p or {}).get("apiKey"),
         aws_access_key_id=(bedrock_p or {}).get("awsAccessKeyId"),
         aws_secret_access_key=(bedrock_p or {}).get("awsSecretKey"),
         aws_region=(bedrock_p or {}).get("awsRegion") or "us-east-1",
@@ -747,6 +753,8 @@ async def test_llm_provider(body: LlmProviderTestRequest):
             llm = setup_llm("claude-sonnet-4-20250514", anthropic_api_key=body.apiKey)
         elif ptype == "openrouter":
             llm = setup_llm("openrouter/openai/gpt-4o-mini", openrouter_api_key=body.apiKey)
+        elif ptype == "deepseek":
+            llm = setup_llm("deepseek/deepseek-chat", deepseek_api_key=body.apiKey)
         elif ptype == "bedrock":
             llm = setup_llm(
                 "bedrock/anthropic.claude-3-haiku-20240307-v1:0",

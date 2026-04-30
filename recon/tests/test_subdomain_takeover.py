@@ -1011,6 +1011,106 @@ class TestRunner:
         assert original == before
         assert "subdomain_takeover" not in original
 
+    def test_enrichment_marks_cname_alive_and_demotes_score(self, monkeypatch):
+        """
+        End-to-end regression for the sysaid/instatus false positive.
+
+        Subjack flags status.sysaid.com as Gemfury. The CNAME (cname.instatus.com)
+        resolves to live IPs. Enrichment must mark cname_alive=True and the
+        scorer must drop confidence below the manual_review threshold.
+        """
+        from recon.main_recon_modules import subdomain_takeover as runner
+        from recon.helpers import takeover_helpers
+
+        # Replace subjack execution with a fixed payload (don't shell out).
+        monkeypatch.setattr(
+            runner,
+            "_run_subjack",
+            lambda subdomains, work_dir, settings: [
+                {"subdomain": "status.sysaid.com", "vulnerable": True, "service": "Gemfury"}
+            ],
+        )
+        # resolve_cname_target is imported into runner's namespace, so patch
+        # it there (and clear the lru_cache on the original to avoid leaks).
+        takeover_helpers.resolve_cname_target.cache_clear()
+        monkeypatch.setattr(
+            runner,
+            "resolve_cname_target",
+            lambda cname, timeout=3.0: {"resolves": True, "ips": ("1.2.3.4",), "nxdomain": False},
+        )
+
+        recon = {
+            "domain": "sysaid.com",
+            "dns": {
+                "subdomains": {
+                    "status.sysaid.com": {"records": {"CNAME": "cname.instatus.com."}},
+                }
+            },
+        }
+        out = runner.run_subdomain_takeover(
+            recon,
+            settings={
+                "SUBDOMAIN_TAKEOVER_ENABLED": True,
+                "SUBJACK_ENABLED": True,
+                "NUCLEI_TAKEOVERS_ENABLED": False,  # avoid docker
+                "BADDNS_ENABLED": False,
+                "TAKEOVER_CNAME_VALIDATION_ENABLED": True,
+                "TAKEOVER_CONFIDENCE_THRESHOLD": 60,
+            },
+        )
+        findings = out["subdomain_takeover"]["findings"]
+        assert len(findings) == 1
+        f = findings[0]
+        assert f["hostname"] == "status.sysaid.com"
+        assert f["cname_target"] == "cname.instatus.com"
+        assert f.get("cname_alive") is True
+        # gemfury is NOT auto-exploitable -> -30 penalty fires
+        # 25 (subjack) + 10 (cname) - 30 (cname_alive non-auto) = 5
+        assert f["confidence"] == 5
+        assert f["verdict"] == "manual_review"
+        assert f["severity"] == "info"
+
+    def test_enrichment_disabled_via_setting_leaves_cname_alive_unset(self, monkeypatch):
+        """When TAKEOVER_CNAME_VALIDATION_ENABLED=False, no DNS probe runs."""
+        from recon.main_recon_modules import subdomain_takeover as runner
+        from recon.helpers import takeover_helpers
+
+        monkeypatch.setattr(
+            runner,
+            "_run_subjack",
+            lambda subdomains, work_dir, settings: [
+                {"subdomain": "x.acme.com", "vulnerable": True, "service": "Github"}
+            ],
+        )
+        # If the helper IS called, blow up — we want to prove it isn't.
+        def _should_not_be_called(*a, **kw):
+            raise AssertionError("resolve_cname_target should not be called when validation disabled")
+        takeover_helpers.resolve_cname_target.cache_clear()
+        monkeypatch.setattr(runner, "resolve_cname_target", _should_not_be_called)
+
+        recon = {
+            "domain": "acme.com",
+            "dns": {
+                "subdomains": {
+                    "x.acme.com": {"records": {"CNAME": "x.github.io."}},
+                }
+            },
+        }
+        out = runner.run_subdomain_takeover(
+            recon,
+            settings={
+                "SUBDOMAIN_TAKEOVER_ENABLED": True,
+                "SUBJACK_ENABLED": True,
+                "NUCLEI_TAKEOVERS_ENABLED": False,
+                "BADDNS_ENABLED": False,
+                "TAKEOVER_CNAME_VALIDATION_ENABLED": False,
+            },
+        )
+        findings = out["subdomain_takeover"]["findings"]
+        assert len(findings) == 1
+        # cname_alive must NOT be set when validation is disabled
+        assert "cname_alive" not in findings[0]
+
 
 # ---------------------------------------------------------------------------
 # End-to-end scoring with manual_review_auto_publish
