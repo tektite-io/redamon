@@ -542,7 +542,7 @@ export function HttpxSection({ data, updateField, onRun }: HttpxSectionProps) {
                     type="number"
                     className="textInput"
                     value={data.bannerGrabMaxLength}
-                    onChange={(e) => updateField('bannerGrabMaxLength', parseInt(e.target.value) || 500)}
+                    onChange={(e) => updateField('bannerGrabMaxLength', parseInt(e.target.value) || 1000)}
                     min={100}
                     max={5000}
                   />

@@ -3,7 +3,8 @@
 import { memo, useMemo, useState } from 'react'
 import { RedZoneTableShell } from './RedZoneTableShell'
 import { useRedZoneTable } from './useRedZoneTable'
-import type { RedZoneExportConfig } from './exportXlsx'
+import type { RedZoneExportConfig } from './exportCsv'
+import { ExternalLink } from '@/components/ui'
 import {
   SeverityBadge,
   Mono,
@@ -11,6 +12,7 @@ import {
   UrlCell,
   CvssCell,
   BoolChip,
+  HostCell,
   filterRowsByText,
 } from './formatters'
 import { normalizeSeverity } from './types'
@@ -145,13 +147,21 @@ export const ParamMatrixTable = memo(function ParamMatrixTable({ projectId }: Pr
               <td><Mono>{r.paramName}</Mono></td>
               <td><PositionChip position={r.position} /></td>
               <td>{r.endpointMethod ? <Mono>{r.endpointMethod}</Mono> : <span className={rowStyles.nullCell}>-</span>}</td>
-              <td><Truncated text={r.endpointPath || r.endpointFullUrl} max={220} /></td>
+              <td>
+                {r.endpointFullUrl ? (
+                  <span className={rowStyles.truncate} style={{ maxWidth: 220 }} title={r.endpointFullUrl}>
+                    <ExternalLink href={r.endpointFullUrl}>{r.endpointPath || r.endpointFullUrl}</ExternalLink>
+                  </span>
+                ) : (
+                  <Truncated text={r.endpointPath} max={220} />
+                )}
+              </td>
               <td><BoolChip value={r.isInjectable} /></td>
               <td><Truncated text={r.vulnName || r.templateId} max={220} /></td>
               <td>{r.vulnSeverity ? <SeverityBadge severity={normalizeSeverity(r.vulnSeverity)} /> : <span className={rowStyles.nullCell}>-</span>}</td>
               <td><CvssCell score={r.cvssScore} /></td>
               <td><UrlCell url={r.matchedAt} max={240} /></td>
-              <td><Truncated text={r.subdomain} max={160} /></td>
+              <td>{r.subdomain ? <HostCell host={r.subdomain} /> : <Truncated text={r.subdomain} max={160} />}</td>
             </tr>
           ))}
         </tbody>

@@ -21,6 +21,7 @@ model User {
   projectPresets  UserProjectPreset[]
   tradecraftResources UserTradecraftResource[]
   settings        UserSettings?
+  uiPreferences Json              @default("{}") @map("ui_preferences")
   createdAt     DateTime          @default(now()) @map("created_at")
   updatedAt     DateTime          @updatedAt @map("updated_at")
 
@@ -258,7 +259,7 @@ model Project {
   bannerGrabEnabled           Boolean  @default(true) @map("banner_grab_enabled")
   bannerGrabTimeout           Int      @default(5) @map("banner_grab_timeout")
   bannerGrabThreads           Int      @default(20) @map("banner_grab_threads")
-  bannerGrabMaxLength         Int      @default(500) @map("banner_grab_max_length")
+  bannerGrabMaxLength         Int      @default(1000) @map("banner_grab_max_length")
 
   // ========== NUCLEI VULNERABILITY SCANNER ==========
   nucleiEnabled               Boolean  @default(true)  @map("nuclei_enabled")
@@ -343,7 +344,7 @@ model Project {
   hakrawlerDepth              Int      @default(2) @map("hakrawler_depth")
   hakrawlerThreads            Int      @default(5) @map("hakrawler_threads")
   hakrawlerTimeout            Int      @default(30) @map("hakrawler_timeout")
-  hakrawlerMaxUrls            Int      @default(500) @map("hakrawler_max_urls")
+  hakrawlerMaxUrls            Int      @default(50000) @map("hakrawler_max_urls")
   hakrawlerIncludeSubs        Boolean  @default(true) @map("hakrawler_include_subs")
   hakrawlerInsecure           Boolean  @default(true) @map("hakrawler_insecure")
   hakrawlerCustomHeaders      String[] @default([]) @map("hakrawler_custom_headers")
@@ -351,7 +352,7 @@ model Project {
 
   // ========== JSLUICE JS ANALYZER ==========
   jsluiceEnabled              Boolean  @default(true) @map("jsluice_enabled")
-  jsluiceMaxFiles             Int      @default(100) @map("jsluice_max_files")
+  jsluiceMaxFiles             Int      @default(10000) @map("jsluice_max_files")
   jsluiceTimeout              Int      @default(300) @map("jsluice_timeout")
   jsluiceExtractUrls          Boolean  @default(true) @map("jsluice_extract_urls")
   jsluiceExtractSecrets       Boolean  @default(true) @map("jsluice_extract_secrets")
@@ -360,7 +361,7 @@ model Project {
 
   // ========== JS RECON SCANNER ==========
   jsReconEnabled              Boolean  @default(false) @map("js_recon_enabled")
-  jsReconMaxFiles             Int      @default(500)   @map("js_recon_max_files")
+  jsReconMaxFiles             Int      @default(10000)   @map("js_recon_max_files")
   jsReconTimeout              Int      @default(900)   @map("js_recon_timeout")
   jsReconConcurrency          Int      @default(10)    @map("js_recon_concurrency")
   jsReconValidateKeys         Boolean  @default(true)  @map("js_recon_validate_keys")
@@ -444,7 +445,7 @@ model Project {
   arjunTimeout                Int      @default(15) @map("arjun_timeout")
   arjunScanTimeout            Int      @default(600) @map("arjun_scan_timeout")
   arjunMethods                String[] @default(["GET", "POST"]) @map("arjun_methods")
-  arjunMaxEndpoints           Int      @default(50) @map("arjun_max_endpoints")
+  arjunMaxEndpoints           Int      @default(50000) @map("arjun_max_endpoints")
   arjunChunkSize              Int      @default(500) @map("arjun_chunk_size")
   arjunRateLimit              Int      @default(0) @map("arjun_rate_limit")
   arjunStable                 Boolean  @default(false) @map("arjun_stable")
@@ -456,7 +457,7 @@ model Project {
   gauEnabled                  Boolean  @default(false) @map("gau_enabled")
   gauDockerImage              String   @default("sxcurity/gau:latest") @map("gau_docker_image")
   gauProviders                String[] @default(["wayback", "commoncrawl", "otx", "urlscan"]) @map("gau_providers")
-  gauMaxUrls                  Int      @default(1000) @map("gau_max_urls")
+  gauMaxUrls                  Int      @default(50000) @map("gau_max_urls")
   gauTimeout                  Int      @default(60) @map("gau_timeout")
   gauThreads                  Int      @default(5) @map("gau_threads")
   gauBlacklistExtensions      String[] @default([]) @map("gau_blacklist_extensions")
@@ -622,7 +623,7 @@ model Project {
 
   // URLScan.io Passive Enrichment
   urlscanEnabled                        Boolean  @default(true)  @map("urlscan_enabled")
-  urlscanMaxResults                     Int      @default(5000)  @map("urlscan_max_results")
+  urlscanMaxResults                     Int      @default(50000)  @map("urlscan_max_results")
 
   // OSINT & Threat Intelligence Master Switch
   osintEnrichmentEnabled                Boolean  @default(false) @map("osint_enrichment_enabled")
@@ -646,7 +647,7 @@ model Project {
   netlasWorkers                         Int      @default(5) @map("netlas_workers")
   zoomEyeWorkers                        Int      @default(5) @map("zoomeye_workers")
   uncoverEnabled                        Boolean  @default(false)  @map("uncover_enabled")
-  uncoverMaxResults                     Int      @default(500)    @map("uncover_max_results")
+  uncoverMaxResults                     Int      @default(50000)    @map("uncover_max_results")
   uncoverDockerImage                    String   @default("projectdiscovery/uncover:latest") @map("uncover_docker_image")
 
   // Subdomain Discovery Master Switch
@@ -663,7 +664,7 @@ model Project {
   subfinderMaxResults                   Int      @default(5000)  @map("subfinder_max_results")
   subfinderDockerImage                  String   @default("projectdiscovery/subfinder:latest") @map("subfinder_docker_image")
   amassEnabled                          Boolean  @default(false) @map("amass_enabled")
-  amassMaxResults                       Int      @default(5000)  @map("amass_max_results")
+  amassMaxResults                       Int      @default(50000)  @map("amass_max_results")
   amassTimeout                          Int      @default(10)    @map("amass_timeout")
   amassActive                           Boolean  @default(false) @map("amass_active")
   amassBrute                            Boolean  @default(false) @map("amass_brute")

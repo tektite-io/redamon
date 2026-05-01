@@ -3,7 +3,9 @@
 import { memo, useMemo, useState } from 'react'
 import { RedZoneTableShell } from './RedZoneTableShell'
 import { useRedZoneTable } from './useRedZoneTable'
-import type { RedZoneExportConfig } from './exportXlsx'
+import type { RedZoneExportConfig } from './exportCsv'
+import { ExternalLink } from '@/components/ui'
+import { resolveLinkable } from '@/lib/url-utils'
 import {
   Mono,
   Truncated,
@@ -129,7 +131,10 @@ export const SharedInfraTable = memo(function SharedInfraTable({ projectId }: Pr
             return (
               <tr key={`${r.clusterType}-${r.clusterKey}-${i}`}>
                 <td><TypeChip t={r.clusterType} /></td>
-                <td><Mono>{r.clusterKey}</Mono></td>
+                <td><Mono>{(() => {
+                  const href = resolveLinkable(r.clusterKey)
+                  return href ? <ExternalLink href={href}>{r.clusterKey}</ExternalLink> : r.clusterKey
+                })()}</Mono></td>
                 <td><NumCell value={r.hostCount} /></td>
                 <td><ListCell items={r.hosts} max={4} /></td>
                 <td>

@@ -3,7 +3,7 @@
 import { memo, useMemo, useState } from 'react'
 import { RedZoneTableShell } from './RedZoneTableShell'
 import { useRedZoneTable } from './useRedZoneTable'
-import type { RedZoneExportConfig } from './exportXlsx'
+import type { RedZoneExportConfig } from './exportCsv'
 import {
   Mono,
   Truncated,

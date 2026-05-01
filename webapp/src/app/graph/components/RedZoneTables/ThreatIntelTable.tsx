@@ -3,7 +3,9 @@
 import { memo, useMemo, useState } from 'react'
 import { RedZoneTableShell } from './RedZoneTableShell'
 import { useRedZoneTable } from './useRedZoneTable'
-import type { RedZoneExportConfig } from './exportXlsx'
+import type { RedZoneExportConfig } from './exportCsv'
+import { ExternalLink } from '@/components/ui'
+import { resolveLinkable } from '@/lib/url-utils'
 import {
   Mono,
   Truncated,
@@ -151,7 +153,10 @@ export const ThreatIntelTable = memo(function ThreatIntelTable({ projectId }: Pr
           {sliced.map((r, i) => (
             <tr key={`${r.assetType}-${r.asset}-${i}`}>
               <td><span className={rowStyles.listChip}>{r.assetType}</span></td>
-              <td><Mono>{r.asset}</Mono></td>
+              <td><Mono>{(() => {
+                const href = resolveLinkable(r.asset)
+                return href ? <ExternalLink href={href}>{r.asset}</ExternalLink> : r.asset
+              })()}</Mono></td>
               <td><NumCell value={r.vtMaliciousCount} /></td>
               <td>
                 {r.vtReputation != null ? (

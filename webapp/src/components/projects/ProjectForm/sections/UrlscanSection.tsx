@@ -99,9 +99,9 @@ export function UrlscanSection({ data, updateField, onRun }: UrlscanSectionProps
                   type="number"
                   className="textInput"
                   value={data.urlscanMaxResults}
-                  onChange={(e) => updateField('urlscanMaxResults', parseInt(e.target.value) || 5000)}
+                  onChange={(e) => updateField('urlscanMaxResults', parseInt(e.target.value) || 50000)}
                   min={1}
-                  max={10000}
+                  max={50000}
                 />
                 <span className={styles.fieldHint}>Maximum scan results to fetch from URLScan API</span>
               </div>

@@ -140,7 +140,7 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     'BANNER_GRAB_ENABLED': True,
     'BANNER_GRAB_TIMEOUT': 5,
     'BANNER_GRAB_THREADS': 20,
-    'BANNER_GRAB_MAX_LENGTH': 500,
+    'BANNER_GRAB_MAX_LENGTH': 1000,
 
     # Nuclei Vulnerability Scanner
     'NUCLEI_ENABLED': True,
@@ -272,7 +272,7 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     'GAU_ENABLED': False,
     'GAU_DOCKER_IMAGE': 'sxcurity/gau:latest',
     'GAU_PROVIDERS': ['wayback', 'commoncrawl', 'otx', 'urlscan'],
-    'GAU_MAX_URLS': 1000,
+    'GAU_MAX_URLS': 50000,
     'GAU_TIMEOUT': 60,
     'GAU_THREADS': 5,
     'GAU_BLACKLIST_EXTENSIONS': [
@@ -309,7 +309,7 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     'HAKRAWLER_DEPTH': 2,
     'HAKRAWLER_THREADS': 5,
     'HAKRAWLER_TIMEOUT': 30,
-    'HAKRAWLER_MAX_URLS': 500,
+    'HAKRAWLER_MAX_URLS': 50000,
     'HAKRAWLER_INCLUDE_SUBS': True,
     'HAKRAWLER_INSECURE': True,
     'HAKRAWLER_CUSTOM_HEADERS': [],
@@ -317,7 +317,7 @@ DEFAULT_SETTINGS: dict[str, Any] = {
 
     # jsluice JavaScript Analyzer
     'JSLUICE_ENABLED': True,
-    'JSLUICE_MAX_FILES': 100,
+    'JSLUICE_MAX_FILES': 10000,
     'JSLUICE_TIMEOUT': 300,
     'JSLUICE_EXTRACT_URLS': True,
     'JSLUICE_EXTRACT_SECRETS': True,
@@ -326,7 +326,7 @@ DEFAULT_SETTINGS: dict[str, Any] = {
 
     # ========== JS RECON SCANNER ==========
     'JS_RECON_ENABLED': False,
-    'JS_RECON_MAX_FILES': 500,
+    'JS_RECON_MAX_FILES': 10000,
     'JS_RECON_TIMEOUT': 900,
     'JS_RECON_CONCURRENCY': 10,
     'JS_RECON_VALIDATE_KEYS': True,
@@ -376,7 +376,7 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     'ARJUN_TIMEOUT': 15,
     'ARJUN_SCAN_TIMEOUT': 600,
     'ARJUN_METHODS': ['GET', 'POST'],
-    'ARJUN_MAX_ENDPOINTS': 50,
+    'ARJUN_MAX_ENDPOINTS': 50000,
     'ARJUN_CHUNK_SIZE': 500,
     'ARJUN_RATE_LIMIT': 0,
     'ARJUN_STABLE': False,
@@ -466,7 +466,7 @@ DEFAULT_SETTINGS: dict[str, Any] = {
 
     # URLScan.io Passive Enrichment
     'URLSCAN_ENABLED': True,
-    'URLSCAN_MAX_RESULTS': 5000,
+    'URLSCAN_MAX_RESULTS': 50000,
 
     # OSINT & Threat Intelligence Enrichment
     'OSINT_ENRICHMENT_ENABLED': False,
@@ -501,7 +501,7 @@ DEFAULT_SETTINGS: dict[str, Any] = {
 
     # Uncover (ProjectDiscovery multi-engine search)
     'UNCOVER_ENABLED': False,
-    'UNCOVER_MAX_RESULTS': 500,
+    'UNCOVER_MAX_RESULTS': 50000,
     'UNCOVER_DOCKER_IMAGE': 'projectdiscovery/uncover:latest',
     'UNCOVER_QUAKE_API_KEY': '',
     'UNCOVER_HUNTER_API_KEY': '',
@@ -528,7 +528,7 @@ DEFAULT_SETTINGS: dict[str, Any] = {
 
     # Amass (OWASP subdomain enumeration)
     'AMASS_ENABLED': False,
-    'AMASS_MAX_RESULTS': 5000,
+    'AMASS_MAX_RESULTS': 50000,
     'AMASS_TIMEOUT': 10,
     'AMASS_ACTIVE': False,
     'AMASS_BRUTE': False,

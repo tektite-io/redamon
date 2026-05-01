@@ -104,7 +104,7 @@ export function GauSection({ data, updateField, onRun }: GauSectionProps) {
                     type="number"
                     className="textInput"
                     value={data.gauMaxUrls}
-                    onChange={(e) => updateField('gauMaxUrls', parseInt(e.target.value) || 1000)}
+                    onChange={(e) => updateField('gauMaxUrls', parseInt(e.target.value) || 50000)}
                     min={1}
                   />
                   <span className={styles.fieldHint}>Maximum URLs to fetch per domain (0 = unlimited)</span>

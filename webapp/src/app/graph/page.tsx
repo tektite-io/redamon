@@ -12,7 +12,8 @@ import { GvmConfirmModal } from './components/GvmConfirmModal'
 import { ReconLogsDrawer } from './components/ReconLogsDrawer'
 import { ViewTabs, type ViewMode, type TunnelStatus, type TableViewMode } from './components/ViewTabs'
 import { DataTable } from './components/DataTable'
-import { JsReconTable, exportJsReconXlsx, exportJsReconJson, exportJsReconMarkdown } from './components/JsReconTable'
+import { NodeDetailsTable } from './components/NodeDetailsTable'
+import { JsReconTable, exportJsReconCsv, exportJsReconJson, exportJsReconMarkdown } from './components/JsReconTable'
 import type { JsReconData } from './components/JsReconTable'
 import {
   KillChainTable,
@@ -36,10 +37,11 @@ import { GraphViews } from './components/GraphViews'
 import { GitHubStarBanner } from './components/GitHubStarBanner'
 import { useGraphData, useDimensions, useNodeSelection, useTableData, useGraphViews } from './hooks'
 import { useStableGraphData } from './hooks/useStableGraphData'
-import { exportToExcel, exportToJson, exportToMarkdown } from './utils/exportExcel'
+import { exportToCsv, exportToJson, exportToMarkdown } from './utils/exportCsv'
 import { clusterGraphData } from './utils/clusterNodes'
 import { useTheme, useSession, useReconStatus, useReconSSE, useGvmStatus, useGvmSSE, useGithubHuntStatus, useGithubHuntSSE, useTrufflehogStatus, useTrufflehogSSE, useActiveSessions, useMultiPartialReconStatus, useMultiPartialReconSSE } from '@/hooks'
 import { useProjectById } from '@/hooks/useProjects'
+import { useGraphTypeFilterPrefs, useGraphViewPrefs } from '@/hooks/useUserPreferences'
 import { useProject } from '@/providers/ProjectProvider'
 import { GVM_PHASES, GITHUB_HUNT_PHASES, TRUFFLEHOG_PHASES, PARTIAL_RECON_PHASE_MAP } from '@/lib/recon-types'
 import { WORKFLOW_TOOLS } from '@/components/projects/ProjectForm/WorkflowView/workflowDefinition'
@@ -59,8 +61,14 @@ export default function GraphPage() {
 
   // Full project data for RoE viewer (only fetched when RoE tab is active)
   const { data: fullProject } = useProjectById(activeView === 'roe' ? projectId : null)
-  const [is3D, setIs3D] = useState(true)
-  const [showLabels, setShowLabels] = useState(true)
+  // 2D/3D + labels are persisted per-user per-project. The hook returns the
+  // saved value (or a sensible default) and the optimistic-updating setter.
+  const {
+    is3D,
+    showLabels,
+    setIs3D,
+    setShowLabels,
+  } = useGraphViewPrefs(projectId)
   const [isAIOpen, setIsAIOpen] = useState(false)
   const [isReconModalOpen, setIsReconModalOpen] = useState(false)
   const [activeLogsDrawer, setActiveLogsDrawer] = useState<'recon' | 'gvm' | 'githubHunt' | 'trufflehog' | `partialRecon:${string}` | null>(null)
@@ -409,11 +417,19 @@ export default function GraphPage() {
   const tableRows = useTableData(data)
   const filterTableRows = useTableData(filterGraphData ?? undefined)
   const [globalFilter, setGlobalFilter] = useState('')
-  const [tableViewMode, setTableViewMode] = useState<TableViewMode>('all')
+  const [tableViewMode, setTableViewMode] = useState<TableViewMode>('nodeDetails')
   const [jsReconSearch, setJsReconSearch] = useState('')
   const [jsReconData, setJsReconData] = useState<JsReconData | null>(null)
   const [activeNodeTypes, setActiveNodeTypes] = useState<Set<string>>(new Set())
   const [tableInitialized, setTableInitialized] = useState(false)
+
+  // Persistent per-project filter for which node types are hidden in the graph
+  // bottom-bar chips. Survives reloads and project switches.
+  const {
+    hiddenTypes: savedHiddenTypes,
+    setHiddenTypes: setSavedHiddenTypes,
+    isLoading: graphFilterPrefsLoading,
+  } = useGraphTypeFilterPrefs(projectId)
 
   const nodeTypeCounts = useMemo(() => {
     const counts: Record<string, number> = {}
@@ -439,17 +455,32 @@ export default function GraphPage() {
   // appeared for the first time" (not in seen set, auto-enable).
   const seenNodeTypesRef = useRef<Set<string>>(new Set())
 
-  // Reset active node types when filter selection changes
+  // Reset active node types when filter selection changes (Surface filter switch).
+  // Saved hidden-types are reapplied so the user's persistent selection survives
+  // a Surface flip.
   useEffect(() => {
+    if (graphFilterPrefsLoading) return
+    const hidden = new Set(savedHiddenTypes)
     seenNodeTypesRef.current = new Set(nodeTypes)
-    setActiveNodeTypes(new Set(nodeTypes))
+    setActiveNodeTypes(new Set(nodeTypes.filter(t => !hidden.has(t))))
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedFilterId])
 
+  // Re-init when projectId changes so the per-project saved selection takes
+  // effect on switch. tableInitialized is reset in a separate effect below.
   useEffect(() => {
-    if (nodeTypes.length > 0 && !tableInitialized) {
+    setTableInitialized(false)
+    seenNodeTypesRef.current = new Set()
+  }, [projectId])
+
+  useEffect(() => {
+    // Defer first init until BOTH the graph data has types AND the user prefs
+    // have loaded — otherwise we'd briefly show "all visible" and either flicker
+    // or overwrite the saved selection.
+    if (nodeTypes.length > 0 && !tableInitialized && !graphFilterPrefsLoading) {
+      const hidden = new Set(savedHiddenTypes)
       seenNodeTypesRef.current = new Set(nodeTypes)
-      setActiveNodeTypes(new Set(nodeTypes))
+      setActiveNodeTypes(new Set(nodeTypes.filter(t => !hidden.has(t))))
       setTableInitialized(true)
       return
     }
@@ -464,7 +495,7 @@ export default function GraphPage() {
       genuinelyNew.forEach((t: string) => next.add(t))
       return next
     })
-  }, [nodeTypes, tableInitialized])
+  }, [nodeTypes, tableInitialized, graphFilterPrefsLoading, savedHiddenTypes])
 
   const filteredByTypeOnly = useMemo(() => {
     if (activeNodeTypes.size === 0) return []
@@ -628,17 +659,22 @@ export default function GraphPage() {
       const next = new Set(prev)
       if (next.has(type)) next.delete(type)
       else next.add(type)
+      // Persist as HIDDEN list (inverse of visible) so newly discovered types
+      // default to visible without any DB write.
+      setSavedHiddenTypes(nodeTypes.filter(t => !next.has(t)))
       return next
     })
-  }, [])
+  }, [nodeTypes, setSavedHiddenTypes])
 
   const handleSelectAllTypes = useCallback(() => {
     setActiveNodeTypes(new Set(nodeTypes))
-  }, [nodeTypes])
+    setSavedHiddenTypes([])
+  }, [nodeTypes, setSavedHiddenTypes])
 
   const handleClearAllTypes = useCallback(() => {
     setActiveNodeTypes(new Set())
-  }, [])
+    setSavedHiddenTypes(nodeTypes.slice())
+  }, [nodeTypes, setSavedHiddenTypes])
 
   const filteredExportRows = useCallback(() => {
     let rows = effectiveTableRows
@@ -652,13 +688,13 @@ export default function GraphPage() {
     return rows
   }, [effectiveTableRows, globalFilter])
 
-  const handleExportExcel = useCallback(async () => {
+  const handleExportCsv = useCallback(() => {
     try {
-      await exportToExcel(filteredExportRows())
-      toast.success('Excel exported')
+      exportToCsv(filteredExportRows())
+      toast.success('CSV exported')
     } catch (err) {
-      console.error('Failed to export Excel:', err)
-      toast.error('Failed to export Excel')
+      console.error('Failed to export CSV:', err)
+      toast.error('Failed to export CSV')
     }
   }, [filteredExportRows, toast])
 
@@ -1206,7 +1242,7 @@ export default function GraphPage() {
         onViewChange={setActiveView}
         globalFilter={globalFilter}
         onGlobalFilterChange={setGlobalFilter}
-        onExport={handleExportExcel}
+        onExport={handleExportCsv}
         onExportJson={handleExportJson}
         onExportMarkdown={handleExportMarkdown}
         totalRows={effectiveTableRows.length}
@@ -1221,7 +1257,7 @@ export default function GraphPage() {
         onTableViewModeChange={setTableViewMode}
         jsReconSearch={jsReconSearch}
         onJsReconSearchChange={setJsReconSearch}
-        onJsReconExportXlsx={jsReconData ? () => exportJsReconXlsx(jsReconData) : undefined}
+        onJsReconExportCsv={jsReconData ? () => exportJsReconCsv(jsReconData) : undefined}
         onJsReconExportJson={jsReconData ? () => exportJsReconJson(jsReconData) : undefined}
         onJsReconExportMarkdown={jsReconData ? () => exportJsReconMarkdown(jsReconData) : undefined}
         jsReconMeta={jsReconData ? `${jsReconData.scan_metadata?.js_files_analyzed || 0} files${jsReconData.summary?.validated_keys?.live ? ` | ${jsReconData.summary.validated_keys.live} LIVE` : ''}` : undefined}
@@ -1273,7 +1309,13 @@ export default function GraphPage() {
               onFilterCreatedAndSelect={handleFilterCreatedAndSelect}
             />
           ) : activeView === 'table' ? (
-            tableViewMode === 'jsRecon' ? (
+            tableViewMode === 'nodeDetails' ? (
+              <NodeDetailsTable
+                data={filterGraphData ?? data}
+                isLoading={filterLoading || isLoading}
+                error={error}
+              />
+            ) : tableViewMode === 'jsRecon' ? (
               <JsReconTable projectId={projectId} search={jsReconSearch} onDataLoaded={setJsReconData} />
             ) : tableViewMode === 'killChain' ? (
               <KillChainTable projectId={projectId} />

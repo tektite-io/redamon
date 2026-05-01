@@ -85,7 +85,7 @@ export function HakrawlerSection({ data, updateField, onRun }: HakrawlerSectionP
                     type="number"
                     className="textInput"
                     value={data.hakrawlerMaxUrls}
-                    onChange={(e) => updateField('hakrawlerMaxUrls', parseInt(e.target.value) || 500)}
+                    onChange={(e) => updateField('hakrawlerMaxUrls', parseInt(e.target.value) || 50000)}
                     min={1}
                   />
                   <span className={styles.fieldHint}>Maximum URLs to collect (process killed at limit)</span>

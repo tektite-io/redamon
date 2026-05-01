@@ -3,12 +3,13 @@
 import { memo, useMemo, useState } from 'react'
 import { RedZoneTableShell } from './RedZoneTableShell'
 import { useRedZoneTable } from './useRedZoneTable'
-import type { RedZoneExportConfig } from './exportXlsx'
+import type { RedZoneExportConfig } from './exportCsv'
 import {
   SeverityBadge,
   Mono,
   Truncated,
   UrlCell,
+  HostCell,
   filterRowsByText,
 } from './formatters'
 import { normalizeSeverity } from './types'
@@ -133,7 +134,7 @@ export const SecretsTable = memo(function SecretsTable({ projectId }: Props) {
               <td><ValidationChip status={r.validationStatus} /></td>
               <td><span className={rowStyles.listChip}>{r.origin}</span></td>
               <td><UrlCell url={r.sourceUrl} max={260} /></td>
-              <td><Truncated text={r.subdomain} max={180} /></td>
+              <td>{r.subdomain ? <HostCell host={r.subdomain} /> : <Truncated text={r.subdomain} max={180} />}</td>
             </tr>
           ))}
         </tbody>

@@ -113,9 +113,9 @@ export function ArjunSection({ data, updateField, onRun }: ArjunSectionProps) {
                     type="number"
                     className="textInput"
                     value={data.arjunMaxEndpoints}
-                    onChange={(e) => updateField('arjunMaxEndpoints', parseInt(e.target.value) || 50)}
+                    onChange={(e) => updateField('arjunMaxEndpoints', parseInt(e.target.value) || 50000)}
                     min={1}
-                    max={500}
+                    max={50000}
                   />
                   <span className={styles.fieldHint}>Max discovered endpoints to test. API/dynamic endpoints are prioritized.</span>
                   <TimeEstimate estimate="~10s per endpoint per method" />

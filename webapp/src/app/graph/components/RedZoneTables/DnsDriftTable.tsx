@@ -3,12 +3,12 @@
 import { memo, useMemo, useState } from 'react'
 import { RedZoneTableShell } from './RedZoneTableShell'
 import { useRedZoneTable } from './useRedZoneTable'
-import type { RedZoneExportConfig } from './exportXlsx'
+import type { RedZoneExportConfig } from './exportCsv'
 import {
-  Mono,
   Truncated,
   ListCell,
   NumCell,
+  HostCell,
   filterRowsByText,
 } from './formatters'
 import rowStyles from './RedZoneTableRow.module.css'
@@ -134,7 +134,7 @@ export const DnsDriftTable = memo(function DnsDriftTable({ projectId }: Props) {
         <tbody>
           {sliced.map((r, i) => (
             <tr key={`${r.domain}-${i}`}>
-              <td><Mono>{r.domain}</Mono></td>
+              <td><HostCell host={r.domain} /></td>
               <td>
                 {r.historicIpCount > 0 ? (
                   <span title={r.historicResolutions.map(h => h.address).filter(Boolean).join('\n')}>

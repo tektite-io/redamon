@@ -448,9 +448,9 @@ export function OsintEnrichmentSection({ data, updateField, onRun, onRunUncover 
                     type="number"
                     className="textInput"
                     value={data.uncoverMaxResults}
-                    onChange={(e) => updateField('uncoverMaxResults', parseInt(e.target.value) || 500)}
+                    onChange={(e) => updateField('uncoverMaxResults', parseInt(e.target.value) || 50000)}
                     min={1}
-                    max={10000}
+                    max={50000}
                   />
                   <span className={styles.fieldHint}>Maximum total results across all engines (1–10 000)</span>
                 </div>

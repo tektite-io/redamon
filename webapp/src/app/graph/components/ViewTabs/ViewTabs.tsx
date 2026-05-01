@@ -1,7 +1,7 @@
 'use client'
 
 import { memo, useState, useRef, useEffect, useCallback } from 'react'
-import { Waypoints, Table2, Terminal, Shield, Search, Download, SquareTerminal, Filter, Plus, Trash2, X, ChevronDown, Code, Target, Zap, Flag, Key, Server, Boxes, LockKeyhole, Bug, Network, Mail, ShieldAlert, Package, History } from 'lucide-react'
+import { Waypoints, Table2, Terminal, Shield, Search, Download, SquareTerminal, Filter, Plus, Trash2, X, ChevronDown, Code, Target, Zap, Flag, Key, Server, Boxes, LockKeyhole, Bug, Network, Mail, ShieldAlert, Package, History, Layers } from 'lucide-react'
 import { Toggle } from '@/components/ui'
 import { AUTO_2D_THRESHOLD } from '../GraphCanvas'
 import styles from './ViewTabs.module.css'
@@ -9,6 +9,7 @@ import styles from './ViewTabs.module.css'
 export type ViewMode = 'graph' | 'graphViews' | 'table' | 'sessions' | 'terminal' | 'roe'
 
 export type TableViewMode =
+  | 'nodeDetails'
   | 'all'
   | 'jsRecon'
   | 'killChain'
@@ -26,6 +27,7 @@ export type TableViewMode =
   | 'dnsDrift'
 
 const TABLE_MODE_LABELS: Record<TableViewMode, string> = {
+  nodeDetails: 'Node Inspector',
   all: 'All Nodes',
   jsRecon: 'JS Recon',
   killChain: 'Kill-Chain',
@@ -87,7 +89,7 @@ interface ViewTabsProps {
   // JS Recon table controls
   jsReconSearch?: string
   onJsReconSearchChange?: (value: string) => void
-  onJsReconExportXlsx?: () => void
+  onJsReconExportCsv?: () => void
   onJsReconExportJson?: () => void
   onJsReconExportMarkdown?: () => void
   jsReconMeta?: string
@@ -119,7 +121,7 @@ export const ViewTabs = memo(function ViewTabs({
   onTableViewModeChange,
   jsReconSearch,
   onJsReconSearchChange,
-  onJsReconExportXlsx,
+  onJsReconExportCsv,
   onJsReconExportJson,
   onJsReconExportMarkdown,
   jsReconMeta,
@@ -271,7 +273,8 @@ export const ViewTabs = memo(function ViewTabs({
             {(() => {
               const mode = tableViewMode ?? 'all'
               const Icon =
-                mode === 'jsRecon' ? Code
+                mode === 'nodeDetails' ? Layers
+                : mode === 'jsRecon' ? Code
                 : mode === 'killChain' ? Target
                 : mode === 'blastRadius' ? Zap
                 : mode === 'takeover' ? Flag
@@ -298,6 +301,12 @@ export const ViewTabs = memo(function ViewTabs({
           </button>
           {tableMenuOpen && (
             <div className={styles.tableDropdownMenu}>
+              <button
+                className={`${styles.tableDropdownItem} ${tableViewMode === 'nodeDetails' ? styles.tableDropdownItemActive : ''}`}
+                onClick={() => { onTableViewModeChange?.('nodeDetails'); setTableMenuOpen(false); onViewChange('table') }}
+              >
+                <Layers size={12} /> Node Inspector
+              </button>
               <button
                 className={`${styles.tableDropdownItem} ${tableViewMode === 'all' ? styles.tableDropdownItemActive : ''}`}
                 onClick={() => { onTableViewModeChange?.('all'); setTableMenuOpen(false); onViewChange('table') }}
@@ -463,9 +472,9 @@ export const ViewTabs = memo(function ViewTabs({
               ? `${totalRows}`
               : `${filteredRows}/${totalRows}`}
           </span>
-          <button className={styles.exportBtn} onClick={onExport} aria-label="Export to Excel" title="Export to Excel">
+          <button className={styles.exportBtn} onClick={onExport} aria-label="Export to CSV" title="Export to CSV">
             <Download size={12} />
-            <span>XLSX</span>
+            <span>CSV</span>
           </button>
           {onExportJson && (
             <button className={styles.exportBtn} onClick={onExportJson} aria-label="Export to JSON" title="Export to JSON">
@@ -496,10 +505,10 @@ export const ViewTabs = memo(function ViewTabs({
               aria-label="Search JS Recon findings"
             />
           </div>
-          {onJsReconExportXlsx && (
-            <button className={styles.exportBtn} onClick={onJsReconExportXlsx} aria-label="Export to Excel" title="Export to Excel">
+          {onJsReconExportCsv && (
+            <button className={styles.exportBtn} onClick={onJsReconExportCsv} aria-label="Export to CSV" title="Export to CSV">
               <Download size={12} />
-              <span>XLSX</span>
+              <span>CSV</span>
             </button>
           )}
           {onJsReconExportJson && (

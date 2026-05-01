@@ -1,14 +1,3 @@
-const INVALID_XML_CHARS = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\uFFFE\uFFFF]/g
-const XLSX_MAX_CELL_CHARS = 32767
-
-export function sanitizeXlsxCell(value: unknown): unknown {
-  if (typeof value !== 'string') return value
-  const cleaned = value.replace(INVALID_XML_CHARS, '')
-  return cleaned.length > XLSX_MAX_CELL_CHARS
-    ? cleaned.slice(0, XLSX_MAX_CELL_CHARS - 1) + '\u2026'
-    : cleaned
-}
-
 export function timestampSlug(): string {
   return new Date().toISOString().slice(0, 19).replace(/[T:]/g, '-')
 }
@@ -36,18 +25,6 @@ export function flattenCellValue(raw: unknown): string {
   return String(raw)
 }
 
-/** Like flattenCellValue but preserves primitives (number, boolean) so XLSX cells get correct type. */
-export function flattenForXlsx(raw: unknown): unknown {
-  if (raw == null) return ''
-  if (Array.isArray(raw)) {
-    return raw
-      .map(v => (typeof v === 'object' && v !== null ? safeStringify(v) : String(v)))
-      .join(', ')
-  }
-  if (typeof raw === 'object') return safeStringify(raw)
-  return raw
-}
-
 function safeStringify(value: unknown): string {
   try {
     return JSON.stringify(value)
@@ -59,3 +36,31 @@ function safeStringify(value: unknown): string {
 export function escapeMarkdownCell(s: string): string {
   return s.replace(/\|/g, '\\|').replace(/\r?\n/g, ' ')
 }
+
+const CSV_BINARY_CHARS = /[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g
+
+function escapeCsvCell(value: unknown): string {
+  const flat = flattenCellValue(value).replace(CSV_BINARY_CHARS, '')
+  if (/[",\r\n]/.test(flat)) return `"${flat.replace(/"/g, '""')}"`
+  return flat
+}
+
+/**
+ * Build a CSV string for the given headers + rows.
+ *
+ * - RFC 4180 quoting: cells containing comma / quote / CR / LF are quoted,
+ *   internal quotes are doubled.
+ * - Streams row-by-row into an array then joins once -- avoids the O(n²)
+ *   string concatenation that crashes browsers on huge exports.
+ * - Adds a UTF-8 BOM so Excel auto-detects encoding.
+ * - CRLF line endings (Excel-friendly).
+ */
+export function toCsv(headers: string[], rows: Array<Record<string, unknown>>): string {
+  const lines: string[] = [headers.map(h => escapeCsvCell(h)).join(',')]
+  for (const row of rows) {
+    lines.push(headers.map(h => escapeCsvCell(row[h])).join(','))
+  }
+  return '\uFEFF' + lines.join('\r\n') + '\r\n'
+}
+
+export const CSV_MIME = 'text/csv;charset=utf-8'

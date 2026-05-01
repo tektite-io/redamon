@@ -5,12 +5,12 @@ import { Loader2, AlertTriangle, Copy, Check } from 'lucide-react'
 import { ExternalLink } from '@/components/ui'
 import styles from './JsReconTable.module.css'
 import {
-  sanitizeXlsxCell,
   timestampSlug,
   downloadBlob,
   flattenCellValue,
-  flattenForXlsx,
   escapeMarkdownCell,
+  toCsv,
+  CSV_MIME,
 } from '../../utils/exportHelpers'
 
 export type { JsReconData }
@@ -78,25 +78,31 @@ function buildJsReconSheets(data: JsReconData): JsReconSheet[] {
   ]
 }
 
-export async function exportJsReconXlsx(data: JsReconData) {
-  const XLSX = await import('xlsx')
-  const wb = XLSX.utils.book_new()
+/**
+ * Multi-section CSV: each non-empty section gets a "# Section: <name>" marker
+ * row followed by its own header + data rows, separated by a blank line.
+ * Spreadsheet apps treat marker rows as a single oddly-formatted cell -- the
+ * tradeoff for emitting a single file vs. a zip of per-section CSVs.
+ */
+export function exportJsReconCsv(data: JsReconData) {
   const sheets = buildJsReconSheets(data)
-
+  const parts: string[] = ['\uFEFF']
+  let first = true
   for (const sheet of sheets) {
     if (!sheet.rows.length) continue
-    const wsData = sheet.rows.map(r => {
+    if (!first) parts.push('\r\n')
+    first = false
+    parts.push(`# Section: ${sheet.name}\r\n`)
+    const rowDicts = sheet.rows.map(r => {
       const row: Record<string, unknown> = {}
-      for (const col of sheet.columns) {
-        row[col] = sanitizeXlsxCell(flattenForXlsx(getCol(r, col)))
-      }
+      for (const col of sheet.columns) row[col] = getCol(r, col)
       return row
     })
-    const ws = XLSX.utils.json_to_sheet(wsData)
-    XLSX.utils.book_append_sheet(wb, ws, sheet.name.slice(0, 31))
+    // toCsv adds its own BOM and trailing newline; strip both for sub-sections.
+    const csv = toCsv(sheet.columns, rowDicts).replace(/^\uFEFF/, '')
+    parts.push(csv)
   }
-
-  XLSX.writeFile(wb, `js-recon-${timestampSlug()}.xlsx`)
+  downloadBlob(parts.join(''), `js-recon-${timestampSlug()}.csv`, CSV_MIME)
 }
 
 export function exportJsReconJson(data: JsReconData) {

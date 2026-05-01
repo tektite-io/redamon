@@ -1,10 +1,11 @@
 import type { TableRow } from '../hooks/useTableData'
 import {
-  sanitizeXlsxCell,
   timestampSlug,
   downloadBlob,
   flattenCellValue,
   escapeMarkdownCell,
+  toCsv,
+  CSV_MIME,
 } from './exportHelpers'
 
 interface NodeExportRow {
@@ -21,6 +22,20 @@ interface NodeExportRow {
   'Level 3 Detail': string
   [extra: string]: unknown
 }
+
+const FIXED_HEADERS: (keyof NodeExportRow)[] = [
+  'Type',
+  'Name',
+  'ID',
+  'Connections In',
+  'Connections Out',
+  'Connections In Detail',
+  'Connections Out Detail',
+  'Level 2',
+  'Level 2 Detail',
+  'Level 3',
+  'Level 3 Detail',
+]
 
 function buildExportRows(rows: TableRow[]): NodeExportRow[] {
   return rows.map(row => {
@@ -48,42 +63,29 @@ function buildExportRows(rows: TableRow[]): NodeExportRow[] {
 
     for (const [key, value] of Object.entries(row.node.properties)) {
       if (key === 'project_id' || key === 'user_id') continue
-      let cellValue: unknown
-      if (Array.isArray(value)) {
-        cellValue = value
-          .map(v => (typeof v === 'object' && v !== null ? JSON.stringify(v) : v))
-          .join(', ')
-      } else if (typeof value === 'object' && value !== null) {
-        try {
-          cellValue = JSON.stringify(value)
-        } catch {
-          cellValue = String(value)
-        }
-      } else {
-        cellValue = value
-      }
-      base[key] = cellValue
+      base[key] = value
     }
 
     return base
   })
 }
 
-export async function exportToExcel(rows: TableRow[], filename?: string) {
-  const XLSX = await import('xlsx')
+function collectHeaders(rows: NodeExportRow[]): string[] {
+  const dynamic = new Set<string>()
+  for (const r of rows) {
+    for (const k of Object.keys(r)) {
+      if (!FIXED_HEADERS.includes(k as keyof NodeExportRow)) dynamic.add(k)
+    }
+  }
+  return [...(FIXED_HEADERS as string[]), ...Array.from(dynamic).sort()]
+}
+
+export function exportToCsv(rows: TableRow[], filename?: string) {
   const built = buildExportRows(rows)
-
-  const wsData = built.map(row => {
-    const cleaned: Record<string, unknown> = {}
-    for (const [k, v] of Object.entries(row)) cleaned[k] = sanitizeXlsxCell(v)
-    return cleaned
-  })
-
-  const ws = XLSX.utils.json_to_sheet(wsData)
-  const wb = XLSX.utils.book_new()
-  XLSX.utils.book_append_sheet(wb, ws, 'Nodes')
-
-  XLSX.writeFile(wb, `${filename || 'redamon-data'}-${timestampSlug()}.xlsx`)
+  const headers = collectHeaders(built)
+  const csv = toCsv(headers, built as unknown as Array<Record<string, unknown>>)
+  const slug = filename || 'redamon-data'
+  downloadBlob(csv, `${slug}-${timestampSlug()}.csv`, CSV_MIME)
 }
 
 export function exportToJson(rows: TableRow[], filename?: string) {
@@ -100,7 +102,6 @@ export function exportToMarkdown(rows: TableRow[], filename?: string) {
   const built = buildExportRows(rows)
   const slug = filename || 'redamon-data'
 
-  // Markdown table headers: union of keys, in order of first appearance
   const headerSet = new Set<string>()
   built.forEach(row => Object.keys(row).forEach(k => headerSet.add(k)))
   const headers = Array.from(headerSet)

@@ -194,7 +194,7 @@ export function SubdomainDiscoverySection({ data, updateField, onRun }: Subdomai
                     type="number"
                     className={`textInput ${styles.toggleRowCompactInput}`}
                     value={data.amassMaxResults}
-                    onChange={(e) => updateField('amassMaxResults', parseInt(e.target.value) || 5000)}
+                    onChange={(e) => updateField('amassMaxResults', parseInt(e.target.value) || 50000)}
                     min={1}
                     max={50000}
                   />

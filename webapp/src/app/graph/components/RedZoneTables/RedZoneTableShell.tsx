@@ -4,11 +4,11 @@ import { memo, useCallback, type ReactNode } from 'react'
 import { Loader2, AlertTriangle, Database, Search, Download, RefreshCw, SearchX } from 'lucide-react'
 import styles from './RedZoneTableShell.module.css'
 import {
-  exportRedZoneXlsx,
+  exportRedZoneCsv,
   exportRedZoneJson,
   exportRedZoneMarkdown,
   type RedZoneExportConfig,
-} from './exportXlsx'
+} from './exportCsv'
 
 interface RedZoneTableShellProps {
   title: string
@@ -16,9 +16,9 @@ interface RedZoneTableShellProps {
   search: string
   onSearchChange: (value: string) => void
   searchPlaceholder?: string
-  /** Provide rows + columns to render XLSX/JSON/MD export buttons. */
+  /** Provide rows + columns to render CSV/JSON/MD export buttons. */
   exportConfig?: RedZoneExportConfig
-  /** Legacy single-button XLSX callback (kept for back-compat). */
+  /** Legacy single-button CSV callback (kept for back-compat). */
   onExport?: () => void
   onRefresh?: () => void
   isLoading: boolean
@@ -47,9 +47,9 @@ export const RedZoneTableShell = memo(function RedZoneTableShell({
   noMatchLabel = 'No rows match your search.',
   children,
 }: RedZoneTableShellProps) {
-  const handleXlsx = useCallback(() => {
+  const handleCsv = useCallback(() => {
     if (!exportConfig) return
-    exportRedZoneXlsx(exportConfig.rows, exportConfig.sheetName, exportConfig.columns, exportConfig.fileSlug)
+    exportRedZoneCsv(exportConfig.rows, exportConfig.sheetName, exportConfig.columns, exportConfig.fileSlug)
   }, [exportConfig])
   const handleJson = useCallback(() => {
     if (!exportConfig) return
@@ -89,9 +89,9 @@ export const RedZoneTableShell = memo(function RedZoneTableShell({
           )}
           {exportConfig ? (
             <>
-              <button className={styles.exportBtn} onClick={handleXlsx} aria-label="Export to Excel" title="Export to Excel">
+              <button className={styles.exportBtn} onClick={handleCsv} aria-label="Export to CSV" title="Export to CSV">
                 <Download size={12} />
-                <span>XLSX</span>
+                <span>CSV</span>
               </button>
               <button className={styles.exportBtn} onClick={handleJson} aria-label="Export to JSON" title="Export to JSON">
                 <Download size={12} />
@@ -103,9 +103,9 @@ export const RedZoneTableShell = memo(function RedZoneTableShell({
               </button>
             </>
           ) : onExport ? (
-            <button className={styles.exportBtn} onClick={onExport} aria-label="Export to Excel">
+            <button className={styles.exportBtn} onClick={onExport} aria-label="Export to CSV">
               <Download size={12} />
-              <span>XLSX</span>
+              <span>CSV</span>
             </button>
           ) : null}
         </div>

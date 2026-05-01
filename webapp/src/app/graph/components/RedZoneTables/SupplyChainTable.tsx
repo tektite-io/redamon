@@ -3,12 +3,15 @@
 import { memo, useMemo, useState } from 'react'
 import { RedZoneTableShell } from './RedZoneTableShell'
 import { useRedZoneTable } from './useRedZoneTable'
-import type { RedZoneExportConfig } from './exportXlsx'
+import type { RedZoneExportConfig } from './exportCsv'
+import { ExternalLink } from '@/components/ui'
+import { githubSlugToUrl, isGithubSlug } from '@/lib/url-utils'
 import {
   SeverityBadge,
   Mono,
   Truncated,
   UrlCell,
+  HostCell,
   filterRowsByText,
 } from './formatters'
 import { normalizeSeverity } from './types'
@@ -128,13 +131,18 @@ export const SupplyChainTable = memo(function SupplyChainTable({ projectId }: Pr
               <td><SeverityBadge severity={normalizeSeverity(r.severity)} /></td>
               <td><Truncated text={r.title} max={260} /></td>
               <td>
-                {r.packageName ? <Mono>{r.packageName}</Mono>
-                  : r.cloudProvider ? <Mono>{r.cloudProvider}{r.cloudAssetType ? ' · ' + r.cloudAssetType : ''}</Mono>
+                {r.packageName ? (
+                  <Mono>
+                    {isGithubSlug(r.packageName)
+                      ? <ExternalLink href={githubSlugToUrl(r.packageName)}>{r.packageName}</ExternalLink>
+                      : r.packageName}
+                  </Mono>
+                ) : r.cloudProvider ? <Mono>{r.cloudProvider}{r.cloudAssetType ? ' · ' + r.cloudAssetType : ''}</Mono>
                   : <span className={rowStyles.nullCell}>-</span>}
               </td>
               <td>{r.version ? <Mono>{r.version}</Mono> : <span className={rowStyles.nullCell}>-</span>}</td>
               <td><UrlCell url={r.sourceUrl} max={260} /></td>
-              <td><Truncated text={r.subdomain} max={160} /></td>
+              <td>{r.subdomain ? <HostCell host={r.subdomain} /> : <Truncated text={r.subdomain} max={160} />}</td>
               <td><Truncated text={r.evidence || r.detail} max={260} /></td>
             </tr>
           ))}

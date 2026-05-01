@@ -446,10 +446,10 @@ export function JsReconSection({ data, updateField, projectId, mode, onRun }: Js
                     <input
                       type="number"
                       className="textInput"
-                      value={(data as any).jsReconMaxFiles ?? 500}
-                      onChange={(e) => updateField('jsReconMaxFiles' as any, parseInt(e.target.value) || 500)}
+                      value={(data as any).jsReconMaxFiles ?? 10000}
+                      onChange={(e) => updateField('jsReconMaxFiles' as any, parseInt(e.target.value) || 10000)}
                       min={10}
-                      max={5000}
+                      max={10000}
                     />
                     <span className={styles.fieldHint}>Maximum JS files to download and analyze</span>
                   </div>

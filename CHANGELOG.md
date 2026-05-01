@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [4.6.0] - 2026-05-01
+
+### Added
+
+- **Node Inspector** -- new default Data Table preset (first item in the dropdown, replacing All Nodes as the landing view). Per-type browser: pick one node type and every property becomes its own sortable column. Toolbar exposes type selector, columns menu (multi-toggle with Show all / Hide all), search, and XLSX / JSON / MD export of the current view. Name cells are auto-linkified for hostname/IP node types; property cells auto-link URLs / IPs / CVE / CWE / CAPEC / GitHub slugs / emails via the existing `resolveLinkable` helper
+- **Persistent UI preferences** -- new `User.uiPreferences` JSON column ([webapp/prisma/schema.prisma](webapp/prisma/schema.prisma)) backed by `/api/user/preferences` (GET + PATCH). Now persisted across reloads and devices:
+  - Node Inspector hidden columns -- per user, per node type
+  - Bottom-bar node-type filter chips -- per user, per project
+  - 2D / 3D toggle and Labels toggle -- per user, per project
+  - Theme (dark / light) -- per user, global
+
+---
+
 ## [4.5.0] - 2026-04-29
 
 ### Added

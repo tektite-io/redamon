@@ -1,10 +1,10 @@
 import {
-  sanitizeXlsxCell,
   timestampSlug,
   downloadBlob,
   flattenCellValue,
-  flattenForXlsx,
   escapeMarkdownCell,
+  toCsv,
+  CSV_MIME,
 } from '../../utils/exportHelpers'
 
 export interface RedZoneExportColumn {
@@ -29,25 +29,16 @@ function buildRowDict(rows: object[], columns: RedZoneExportColumn[]): Record<st
   })
 }
 
-export async function exportRedZoneXlsx<T extends object>(
+export function exportRedZoneCsv<T extends object>(
   rows: T[],
-  sheetName: string,
+  _sheetName: string,
   columns: RedZoneExportColumn[],
   fileSlug: string,
 ) {
-  const XLSX = await import('xlsx')
-  const wb = XLSX.utils.book_new()
-  const data = rows.map(row => {
-    const out: Record<string, unknown> = {}
-    for (const col of columns) {
-      const raw = (row as Record<string, unknown>)[col.key]
-      out[col.header] = sanitizeXlsxCell(flattenForXlsx(raw))
-    }
-    return out
-  })
-  const ws = XLSX.utils.json_to_sheet(data)
-  XLSX.utils.book_append_sheet(wb, ws, sheetName.slice(0, 31))
-  XLSX.writeFile(wb, `${fileSlug}-${timestampSlug()}.xlsx`)
+  const headers = columns.map(c => c.header)
+  const data = buildRowDict(rows, columns)
+  const csv = toCsv(headers, data)
+  downloadBlob(csv, `${fileSlug}-${timestampSlug()}.csv`, CSV_MIME)
 }
 
 export function exportRedZoneJson<T extends object>(
@@ -88,10 +79,10 @@ export function exportRedZoneMarkdown<T extends object>(
 }
 
 export function runRedZoneExport(
-  format: 'xlsx' | 'json' | 'md',
+  format: 'csv' | 'json' | 'md',
   config: RedZoneExportConfig,
 ) {
-  if (format === 'xlsx') return exportRedZoneXlsx(config.rows, config.sheetName, config.columns, config.fileSlug)
+  if (format === 'csv') return exportRedZoneCsv(config.rows, config.sheetName, config.columns, config.fileSlug)
   if (format === 'json') return exportRedZoneJson(config.rows, config.sheetName, config.columns, config.fileSlug)
   return exportRedZoneMarkdown(config.rows, config.sheetName, config.columns, config.fileSlug)
 }

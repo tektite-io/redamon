@@ -73,9 +73,9 @@ export function JsluiceSection({ data, updateField, onRun }: JsluiceSectionProps
                     type="number"
                     className="textInput"
                     value={data.jsluiceMaxFiles}
-                    onChange={(e) => updateField('jsluiceMaxFiles', parseInt(e.target.value) || 100)}
+                    onChange={(e) => updateField('jsluiceMaxFiles', parseInt(e.target.value) || 10000)}
                     min={1}
-                    max={1000}
+                    max={10000}
                   />
                   <span className={styles.fieldHint}>Maximum number of .js files to download and analyze</span>
                 </div>

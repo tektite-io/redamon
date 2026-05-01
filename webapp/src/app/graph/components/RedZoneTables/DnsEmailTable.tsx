@@ -3,13 +3,13 @@
 import { memo, useMemo, useState } from 'react'
 import { RedZoneTableShell } from './RedZoneTableShell'
 import { useRedZoneTable } from './useRedZoneTable'
-import type { RedZoneExportConfig } from './exportXlsx'
+import type { RedZoneExportConfig } from './exportCsv'
 import {
-  Mono,
   Truncated,
   ListCell,
   BoolChip,
   NumCell,
+  HostCell,
   filterRowsByText,
 } from './formatters'
 import rowStyles from './RedZoneTableRow.module.css'
@@ -141,7 +141,7 @@ export const DnsEmailTable = memo(function DnsEmailTable({ projectId }: Props) {
         <tbody>
           {sliced.map((r, i) => (
             <tr key={`${r.domain}-${i}`}>
-              <td><Mono>{r.domain}</Mono></td>
+              <td><HostCell host={r.domain} /></td>
               <td><BoolChip value={r.spfPresent} /></td>
               <td><BoolChip value={r.spfStrict} trueLabel="-all" falseLabel="weak" /></td>
               <td><BoolChip value={r.dmarcPresent} /></td>

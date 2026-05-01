@@ -3,13 +3,14 @@
 import { memo, useMemo, useState } from 'react'
 import { RedZoneTableShell } from './RedZoneTableShell'
 import { useRedZoneTable } from './useRedZoneTable'
-import type { RedZoneExportConfig } from './exportXlsx'
+import type { RedZoneExportConfig } from './exportCsv'
 import {
   SeverityBadge,
   Mono,
   Truncated,
   ListCell,
   NumCell,
+  HostCell,
   filterRowsByText,
 } from './formatters'
 import { normalizeSeverity } from './types'
@@ -120,8 +121,8 @@ export const TakeoverTable = memo(function TakeoverTable({ projectId }: Props) {
         <tbody>
           {sliced.map((r, i) => (
             <tr key={r.id || `${r.hostname}-${i}`}>
-              <td><Truncated text={r.hostname} max={220} /></td>
-              <td><Truncated text={r.cnameTarget} max={220} /></td>
+              <td>{r.hostname ? <HostCell host={r.hostname} /> : <Truncated text={r.hostname} max={220} />}</td>
+              <td>{r.cnameTarget ? <HostCell host={r.cnameTarget} /> : <Truncated text={r.cnameTarget} max={220} />}</td>
               <td><Mono>{r.provider}</Mono></td>
               <td><Mono>{r.method}</Mono></td>
               <td><VerdictChip verdict={r.verdict} /></td>

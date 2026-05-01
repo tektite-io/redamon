@@ -3,12 +3,13 @@
 import { memo, useMemo, useState } from 'react'
 import { RedZoneTableShell } from './RedZoneTableShell'
 import { useRedZoneTable } from './useRedZoneTable'
-import type { RedZoneExportConfig } from './exportXlsx'
+import type { RedZoneExportConfig } from './exportCsv'
 import {
   Mono,
   Truncated,
   ListCell,
   BoolChip,
+  IpCell,
   filterRowsByText,
 } from './formatters'
 import rowStyles from './RedZoneTableRow.module.css'
@@ -124,7 +125,7 @@ export const NetInitAccessTable = memo(function NetInitAccessTable({ projectId }
         <tbody>
           {sliced.map((r, i) => (
             <tr key={`${r.ipAddress}-${r.port}-${i}`}>
-              <td><Mono>{r.ipAddress}</Mono></td>
+              <td><IpCell ip={r.ipAddress} port={r.port ?? undefined} /></td>
               <td>
                 {r.port != null ? <Mono>{r.port}/{r.protocol}</Mono> : <span className={rowStyles.nullCell}>-</span>}
               </td>
