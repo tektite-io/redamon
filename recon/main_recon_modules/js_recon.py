@@ -421,7 +421,9 @@ def _validate_secrets(secrets: list, settings: dict) -> list:
     """
     Validate discovered secrets using service-specific validators.
 
-    Only validates high-confidence findings that have a validator_ref.
+    Only validates high/medium-confidence findings that have a validator_ref.
+    Network validations run in parallel (capped by JS_RECON_CONCURRENCY); each
+    task mutates its own secret dict in place, so no shared-state lock needed.
     """
     if not settings.get('JS_RECON_VALIDATE_KEYS', True):
         for s in secrets:
@@ -429,60 +431,65 @@ def _validate_secrets(secrets: list, settings: dict) -> list:
         return secrets
 
     validation_timeout = settings.get('JS_RECON_VALIDATION_TIMEOUT', 5)
-    validated_count = 0
-    invalid_count = 0
 
-    for secret in secrets:
-        validator_ref = secret.get('validator_ref')
-        if not validator_ref:
-            secret['validation'] = {'status': 'unvalidated'}
-            continue
+    def _validate_one(secret: dict) -> None:
+        try:
+            validator_ref = secret.get('validator_ref')
+            if not validator_ref:
+                secret['validation'] = {'status': 'unvalidated'}
+                return
 
-        # Only validate high/medium confidence findings
-        if secret.get('confidence') not in ('high', 'medium'):
-            secret['validation'] = {'status': 'skipped'}
-            continue
+            if secret.get('confidence') not in ('high', 'medium'):
+                secret['validation'] = {'status': 'skipped'}
+                return
 
-        result = validate_secret(
-            secret['name'],
-            secret['matched_text'],
-            validator_ref=validator_ref,
-            timeout=validation_timeout,
-        )
+            result = validate_secret(
+                secret['name'],
+                secret['matched_text'],
+                validator_ref=validator_ref,
+                timeout=validation_timeout,
+            )
 
-        if result.get('error') == 'no_validator':
-            secret['validation'] = {'status': 'unvalidated'}
-        elif result.get('error') == 'incomplete_credentials':
-            secret['validation'] = {'status': 'incomplete', 'info': result.get('info', '')}
-        elif result.get('error') == 'format_only':
-            secret['validation'] = {'status': 'format_validated', 'info': result.get('info', '')}
-        elif result.get('error') == 'format_invalid':
-            invalid_count += 1
-            secret['validation'] = {
-                'status': 'invalid',
-                'valid': False,
-                'info': result.get('info', ''),
-                'error': 'format_invalid',
-            }
-        elif result.get('valid'):
-            validated_count += 1
-            secret['validation'] = {
-                'status': 'validated',
-                'valid': True,
-                'scope': result.get('scope', ''),
-                'info': result.get('info', ''),
-                'checked_at': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()),
-            }
-        else:
-            invalid_count += 1
-            secret['validation'] = {
-                'status': 'invalid',
-                'valid': False,
-                'info': result.get('info', ''),
-                'error': result.get('error', ''),
-                'checked_at': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()),
-            }
+            err = result.get('error')
+            if err == 'no_validator':
+                secret['validation'] = {'status': 'unvalidated'}
+            elif err == 'incomplete_credentials':
+                secret['validation'] = {'status': 'incomplete', 'info': result.get('info', '')}
+            elif err == 'format_only':
+                secret['validation'] = {'status': 'format_validated', 'info': result.get('info', '')}
+            elif err == 'format_invalid':
+                secret['validation'] = {
+                    'status': 'invalid',
+                    'valid': False,
+                    'info': result.get('info', ''),
+                    'error': 'format_invalid',
+                }
+            elif result.get('valid'):
+                secret['validation'] = {
+                    'status': 'validated',
+                    'valid': True,
+                    'scope': result.get('scope', ''),
+                    'info': result.get('info', ''),
+                    'checked_at': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()),
+                }
+            else:
+                secret['validation'] = {
+                    'status': 'invalid',
+                    'valid': False,
+                    'info': result.get('info', ''),
+                    'error': result.get('error', ''),
+                    'checked_at': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()),
+                }
+        except Exception as e:
+            secret['validation'] = {'status': 'error', 'error': f'{type(e).__name__}: {e}'}
 
+    workers = max(1, min(settings.get('JS_RECON_CONCURRENCY', 10), 20))
+    if secrets:
+        with ThreadPoolExecutor(max_workers=workers) as ex:
+            list(ex.map(_validate_one, secrets))
+
+    validated_count = sum(1 for s in secrets if s.get('validation', {}).get('status') == 'validated')
+    invalid_count = sum(1 for s in secrets if s.get('validation', {}).get('status') == 'invalid')
     if validated_count or invalid_count:
         print(f"[+][JsRecon] Key validation: {validated_count} live, {invalid_count} invalid")
 
