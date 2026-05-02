@@ -212,6 +212,111 @@ async def fetch_deepseek_models(api_key: str = "") -> list[dict]:
 
 
 # ---------------------------------------------------------------------------
+# OpenAI-compatible discovery for additional providers (GLM, Kimi, Qwen)
+# ---------------------------------------------------------------------------
+async def _fetch_openai_compat_models(
+    *,
+    base_url: str,
+    api_key: str,
+    id_prefix: str,
+    description: str,
+) -> list[dict]:
+    """Generic helper for providers exposing an OpenAI-compatible /models endpoint."""
+    if not api_key:
+        return []
+
+    try:
+        async with httpx.AsyncClient(timeout=15) as client:
+            resp = await client.get(
+                f"{base_url.rstrip('/')}/models",
+                headers={"Authorization": f"Bearer {api_key}"},
+            )
+            resp.raise_for_status()
+        data = resp.json().get("data", [])
+    except Exception as e:
+        logger.warning(f"{id_prefix} /models unreachable: {e}")
+        return []
+
+    models = []
+    for m in data:
+        mid = m.get("id", "")
+        if not mid:
+            continue
+        models.append(_model(
+            id=f"{id_prefix}/{mid}",
+            name=mid,
+            description=description,
+        ))
+    models.sort(key=lambda m: m["id"], reverse=True)
+    return models
+
+
+async def fetch_glm_models(api_key: str = "") -> list[dict]:
+    return await _fetch_openai_compat_models(
+        base_url="https://open.bigmodel.cn/api/paas/v4",
+        api_key=api_key,
+        id_prefix="glm",
+        description="Zhipu GLM",
+    )
+
+
+async def fetch_kimi_models(api_key: str = "") -> list[dict]:
+    return await _fetch_openai_compat_models(
+        base_url="https://api.moonshot.ai/v1",
+        api_key=api_key,
+        id_prefix="kimi",
+        description="Moonshot Kimi",
+    )
+
+
+async def fetch_qwen_models(api_key: str = "") -> list[dict]:
+    return await _fetch_openai_compat_models(
+        base_url="https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
+        api_key=api_key,
+        id_prefix="qwen",
+        description="Alibaba Qwen",
+    )
+
+
+# ---------------------------------------------------------------------------
+# Google Gemini (AI Studio)
+# ---------------------------------------------------------------------------
+async def fetch_gemini_models(api_key: str = "") -> list[dict]:
+    """Fetch chat models from Google AI Studio's generativelanguage API."""
+    if not api_key:
+        return []
+
+    async with httpx.AsyncClient(timeout=15) as client:
+        resp = await client.get(
+            "https://generativelanguage.googleapis.com/v1beta/models",
+            params={"key": api_key},
+        )
+        resp.raise_for_status()
+
+    data = resp.json().get("models", [])
+    models = []
+    for m in data:
+        full_name = m.get("name", "")
+        if not full_name.startswith("models/gemini-"):
+            continue
+        if "generateContent" not in m.get("supportedGenerationMethods", []):
+            continue
+
+        mid = full_name[len("models/"):]
+        display = m.get("displayName", mid)
+        ctx = m.get("inputTokenLimit")
+        models.append(_model(
+            id=f"gemini/{mid}",
+            name=display,
+            context_length=ctx,
+            description="Google Gemini",
+        ))
+
+    models.sort(key=lambda m: m["id"], reverse=True)
+    return models
+
+
+# ---------------------------------------------------------------------------
 # AWS Bedrock
 # ---------------------------------------------------------------------------
 async def fetch_bedrock_models(
@@ -316,6 +421,14 @@ async def fetch_all_models(
             tasks_db[f"OpenRouter ({pname})"] = fetch_openrouter_models(api_key=p.get("apiKey", ""))
         elif ptype == "deepseek":
             tasks_db[f"DeepSeek ({pname})"] = fetch_deepseek_models(api_key=p.get("apiKey", ""))
+        elif ptype == "gemini":
+            tasks_db[f"Google Gemini ({pname})"] = fetch_gemini_models(api_key=p.get("apiKey", ""))
+        elif ptype == "glm":
+            tasks_db[f"GLM ({pname})"] = fetch_glm_models(api_key=p.get("apiKey", ""))
+        elif ptype == "kimi":
+            tasks_db[f"Kimi ({pname})"] = fetch_kimi_models(api_key=p.get("apiKey", ""))
+        elif ptype == "qwen":
+            tasks_db[f"Qwen ({pname})"] = fetch_qwen_models(api_key=p.get("apiKey", ""))
         elif ptype == "bedrock":
             tasks_db[f"AWS Bedrock ({pname})"] = fetch_bedrock_models(
                 region=p.get("awsRegion", "us-east-1"),

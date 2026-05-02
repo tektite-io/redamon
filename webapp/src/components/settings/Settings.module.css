@@ -132,6 +132,7 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  color: var(--text-primary);
 }
 
 .providerLogoImg {
@@ -205,8 +206,9 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  height: 32px;
+  height: 40px;
   margin-bottom: var(--space-3);
+  color: var(--text-primary);
 }
 
 .providerTypeLogo {
@@ -251,6 +253,20 @@
   align-items: center;
   justify-content: space-between;
   margin-bottom: var(--space-4);
+}
+
+.apiKeyLink {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: var(--text-xs);
+  color: var(--accent-primary);
+  text-decoration: none;
+  margin-bottom: var(--space-4);
+}
+
+.apiKeyLink:hover {
+  text-decoration: underline;
 }
 
 .formTitle {

@@ -107,12 +107,8 @@ const TOOL_NAME_MAP: Record<string, string> = {
   pdcpApiKey: 'pdcp',
 }
 
-function getProviderIcon(providerType: string): string {
-  return PROVIDER_TYPES.find(p => p.id === providerType)?.icon || '⚙️'
-}
-
-function getProviderLogo(providerType: string): string | null {
-  return PROVIDER_TYPES.find(p => p.id === providerType)?.logo ?? null
+function getProviderIconComponent(providerType: string) {
+  return PROVIDER_TYPES.find(p => p.id === providerType)?.Icon ?? null
 }
 
 function getProviderLabel(providerType: string): string {
@@ -970,12 +966,12 @@ export default function SettingsPage() {
             <div className={styles.emptyState}>No providers configured. Add one to get started.</div>
           ) : (
             <div className={styles.providerList}>
-              {providers.map((p: ProviderData) => (
+              {providers.map((p: ProviderData) => {
+                const Icon = getProviderIconComponent(p.providerType)
+                return (
                 <div key={p.id} className={styles.providerCard}>
-                  <span className={styles.providerIcon}>
-                    {getProviderLogo(p.providerType)
-                      ? <img src={getProviderLogo(p.providerType)!} alt={getProviderLabel(p.providerType)} className={styles.providerLogoImg} style={{ width: 28, height: 28, objectFit: 'contain' }} />
-                      : getProviderIcon(p.providerType)}
+                  <span className={styles.providerIcon} aria-label={getProviderLabel(p.providerType)}>
+                    {Icon ? <Icon size={28} /> : null}
                   </span>
                   <div className={styles.providerInfo}>
                     <div className={styles.providerName}>{p.name}</div>
@@ -993,7 +989,8 @@ export default function SettingsPage() {
                     </button>
                   </div>
                 </div>
-              ))}
+                )
+              })}
             </div>
           )
         )}

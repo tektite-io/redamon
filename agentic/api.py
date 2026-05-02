@@ -175,6 +175,10 @@ async def check_target_guardrail(body: GuardrailRequest):
                 anthropic_p = _resolve_provider_key(user_providers, "anthropic")
                 openrouter_p = _resolve_provider_key(user_providers, "openrouter")
                 deepseek_p = _resolve_provider_key(user_providers, "deepseek")
+                gemini_p = _resolve_provider_key(user_providers, "gemini")
+                glm_p = _resolve_provider_key(user_providers, "glm")
+                kimi_p = _resolve_provider_key(user_providers, "kimi")
+                qwen_p = _resolve_provider_key(user_providers, "qwen")
 
                 orchestrator.llm = setup_llm(
                     model_name,
@@ -182,6 +186,10 @@ async def check_target_guardrail(body: GuardrailRequest):
                     anthropic_api_key=(anthropic_p or {}).get("apiKey"),
                     openrouter_api_key=(openrouter_p or {}).get("apiKey"),
                     deepseek_api_key=(deepseek_p or {}).get("apiKey"),
+                    gemini_api_key=(gemini_p or {}).get("apiKey"),
+                    glm_api_key=(glm_p or {}).get("apiKey"),
+                    kimi_api_key=(kimi_p or {}).get("apiKey"),
+                    qwen_api_key=(qwen_p or {}).get("apiKey"),
                 )
                 orchestrator.model_name = model_name
                 logger.info(f"Guardrail: bootstrapped LLM with default model {model_name}")
@@ -458,6 +466,10 @@ def _setup_llm_for_endpoint(model_name: str) -> "BaseChatModel":
     openrouter_p = _resolve_provider_key(user_providers, "openrouter")
     bedrock_p = _resolve_provider_key(user_providers, "bedrock")
     deepseek_p = _resolve_provider_key(user_providers, "deepseek")
+    gemini_p = _resolve_provider_key(user_providers, "gemini")
+    glm_p = _resolve_provider_key(user_providers, "glm")
+    kimi_p = _resolve_provider_key(user_providers, "kimi")
+    qwen_p = _resolve_provider_key(user_providers, "qwen")
 
     return setup_llm(
         model_name,
@@ -465,6 +477,10 @@ def _setup_llm_for_endpoint(model_name: str) -> "BaseChatModel":
         anthropic_api_key=(anthropic_p or {}).get("apiKey"),
         openrouter_api_key=(openrouter_p or {}).get("apiKey"),
         deepseek_api_key=(deepseek_p or {}).get("apiKey"),
+        gemini_api_key=(gemini_p or {}).get("apiKey"),
+        glm_api_key=(glm_p or {}).get("apiKey"),
+        kimi_api_key=(kimi_p or {}).get("apiKey"),
+        qwen_api_key=(qwen_p or {}).get("apiKey"),
         aws_access_key_id=(bedrock_p or {}).get("awsAccessKeyId"),
         aws_secret_access_key=(bedrock_p or {}).get("awsSecretKey"),
         aws_region=(bedrock_p or {}).get("awsRegion") or "us-east-1",
@@ -515,12 +531,20 @@ def _build_llm_for_user(user_id: Optional[str]):
     openrouter_p = _resolve_provider_key(user_providers, "openrouter")
     bedrock_p = _resolve_provider_key(user_providers, "bedrock")
     deepseek_p = _resolve_provider_key(user_providers, "deepseek")
+    gemini_p = _resolve_provider_key(user_providers, "gemini")
+    glm_p = _resolve_provider_key(user_providers, "glm")
+    kimi_p = _resolve_provider_key(user_providers, "kimi")
+    qwen_p = _resolve_provider_key(user_providers, "qwen")
     return setup_llm(
         model_name,
         openai_api_key=(openai_p or {}).get("apiKey"),
         anthropic_api_key=(anthropic_p or {}).get("apiKey"),
         openrouter_api_key=(openrouter_p or {}).get("apiKey"),
         deepseek_api_key=(deepseek_p or {}).get("apiKey"),
+        gemini_api_key=(gemini_p or {}).get("apiKey"),
+        glm_api_key=(glm_p or {}).get("apiKey"),
+        kimi_api_key=(kimi_p or {}).get("apiKey"),
+        qwen_api_key=(qwen_p or {}).get("apiKey"),
         aws_access_key_id=(bedrock_p or {}).get("awsAccessKeyId"),
         aws_secret_access_key=(bedrock_p or {}).get("awsSecretKey"),
         aws_region=(bedrock_p or {}).get("awsRegion") or "us-east-1",
@@ -755,6 +779,46 @@ async def test_llm_provider(body: LlmProviderTestRequest):
             llm = setup_llm("openrouter/openai/gpt-4o-mini", openrouter_api_key=body.apiKey)
         elif ptype == "deepseek":
             llm = setup_llm("deepseek/deepseek-chat", deepseek_api_key=body.apiKey)
+        elif ptype == "gemini":
+            from orchestrator_helpers.model_providers import fetch_gemini_models
+            available = await fetch_gemini_models(api_key=body.apiKey)
+            if not available:
+                return JSONResponse(
+                    content={"success": False, "error": "No Gemini models available for this API key"},
+                    status_code=400,
+                )
+            flash = next((m for m in available if "flash" in m["id"].lower()), available[0])
+            llm = setup_llm(flash["id"], gemini_api_key=body.apiKey)
+        elif ptype == "glm":
+            from orchestrator_helpers.model_providers import fetch_glm_models
+            available = await fetch_glm_models(api_key=body.apiKey)
+            if not available:
+                return JSONResponse(
+                    content={"success": False, "error": "No GLM models available for this API key"},
+                    status_code=400,
+                )
+            pick = next((m for m in available if "flash" in m["id"].lower()), available[0])
+            llm = setup_llm(pick["id"], glm_api_key=body.apiKey)
+        elif ptype == "kimi":
+            from orchestrator_helpers.model_providers import fetch_kimi_models
+            available = await fetch_kimi_models(api_key=body.apiKey)
+            if not available:
+                return JSONResponse(
+                    content={"success": False, "error": "No Kimi models available for this API key"},
+                    status_code=400,
+                )
+            pick = next((m for m in available if "8k" in m["id"].lower()), available[0])
+            llm = setup_llm(pick["id"], kimi_api_key=body.apiKey)
+        elif ptype == "qwen":
+            from orchestrator_helpers.model_providers import fetch_qwen_models
+            available = await fetch_qwen_models(api_key=body.apiKey)
+            if not available:
+                return JSONResponse(
+                    content={"success": False, "error": "No Qwen models available for this API key"},
+                    status_code=400,
+                )
+            pick = next((m for m in available if "turbo" in m["id"].lower()), available[0])
+            llm = setup_llm(pick["id"], qwen_api_key=body.apiKey)
         elif ptype == "bedrock":
             llm = setup_llm(
                 "bedrock/anthropic.claude-3-haiku-20240307-v1:0",

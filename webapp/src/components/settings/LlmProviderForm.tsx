@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useCallback } from 'react'
-import { Loader2, CheckCircle, XCircle, Plus, Trash2, Eye, EyeOff } from 'lucide-react'
+import { Loader2, CheckCircle, XCircle, Plus, Trash2, Eye, EyeOff, ExternalLink } from 'lucide-react'
 import { useToast } from '@/components/ui'
 import { PROVIDER_TYPES, OPENAI_COMPAT_PRESETS } from '@/lib/llmProviderPresets'
 import type { ProviderType } from '@/lib/llmProviderPresets'
@@ -165,10 +165,8 @@ export function LlmProviderForm({ userId, provider, existingProviderTypes = [], 
                 title={alreadyAdded ? `${pt.name} already configured` : undefined}
                 style={alreadyAdded ? { opacity: 0.45, cursor: 'not-allowed' } : undefined}
               >
-                <span className={styles.providerTypeIcon}>
-                  {pt.logo
-                    ? <img src={pt.logo} alt={pt.name} className={styles.providerTypeLogo} style={{ width: 40, height: 40, objectFit: 'contain' }} />
-                    : pt.icon}
+                <span className={styles.providerTypeIcon} aria-label={pt.name}>
+                  <pt.Icon size={40} />
                 </span>
                 <span className={styles.providerTypeName}>
                   {pt.name}{alreadyAdded ? ' (added)' : ''}
@@ -187,19 +185,32 @@ export function LlmProviderForm({ userId, provider, existingProviderTypes = [], 
 
   // Step 2: Configure
   const ptype = form.providerType as ProviderType
-  const isKeyBased = ['openai', 'anthropic', 'openrouter', 'deepseek'].includes(ptype)
+  const providerDef = PROVIDER_TYPES.find(p => p.id === ptype)
+  const isKeyBased = ['openai', 'anthropic', 'openrouter', 'deepseek', 'gemini', 'glm', 'kimi', 'qwen'].includes(ptype)
   const isBedrock = ptype === 'bedrock'
   const isCompat = ptype === 'openai_compatible'
+  const apiKeyUrl = providerDef?.apiKeyUrl
+  const apiKeyLinkLabel = isBedrock ? 'Get AWS credentials' : 'Get API key'
   return (
     <div className={styles.formSection}>
       <div className={styles.formHeader}>
         <h3 className={styles.formTitle}>
-          {isEditing ? 'Edit' : 'Add'} {PROVIDER_TYPES.find(p => p.id === ptype)?.name || ptype} Provider
+          {isEditing ? 'Edit' : 'Add'} {providerDef?.name || ptype} Provider
         </h3>
         {!isEditing && (
           <button className="textButton" onClick={() => setStep('type')}>Change type</button>
         )}
       </div>
+      {apiKeyUrl && (
+        <a
+          href={apiKeyUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className={styles.apiKeyLink}
+        >
+          {apiKeyLinkLabel} <ExternalLink size={12} />
+        </a>
+      )}
 
       {/* Name */}
       <div className="formGroup">
