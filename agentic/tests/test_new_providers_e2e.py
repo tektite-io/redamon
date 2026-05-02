@@ -89,6 +89,8 @@ from orchestrator_helpers.model_providers import (  # noqa: E402
     fetch_glm_models,
     fetch_kimi_models,
     fetch_qwen_models,
+    fetch_xai_models,
+    fetch_mistral_models,
 )
 
 
@@ -113,6 +115,20 @@ PROVIDERS = [
         "id_prefix": "qwen",
         "expected_host": "dashscope-intl.aliyuncs.com",
         "setup_kwarg": "qwen_api_key",
+    },
+    {
+        "label": "xAI (Grok)",
+        "fetcher": fetch_xai_models,
+        "id_prefix": "xai",
+        "expected_host": "api.x.ai",
+        "setup_kwarg": "xai_api_key",
+    },
+    {
+        "label": "Mistral AI",
+        "fetcher": fetch_mistral_models,
+        "id_prefix": "mistral",
+        "expected_host": "api.mistral.ai",
+        "setup_kwarg": "mistral_api_key",
     },
 ]
 

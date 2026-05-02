@@ -37,6 +37,8 @@ def parse_model_provider(model_name: str) -> tuple[str, str]:
       - "glm/<model>"         → ("glm", "<model>")
       - "kimi/<model>"        → ("kimi", "<model>")
       - "qwen/<model>"        → ("qwen", "<model>")
+      - "xai/<model>"         → ("xai", "<model>")
+      - "mistral/<model>"     → ("mistral", "<model>")
       - "claude-*"            → ("anthropic", "claude-*")
       - anything else         → ("openai", "<model>")
 
@@ -61,6 +63,10 @@ def parse_model_provider(model_name: str) -> tuple[str, str]:
         return ("kimi", model_name[len("kimi/"):])
     elif model_name.startswith("qwen/"):
         return ("qwen", model_name[len("qwen/"):])
+    elif model_name.startswith("xai/"):
+        return ("xai", model_name[len("xai/"):])
+    elif model_name.startswith("mistral/"):
+        return ("mistral", model_name[len("mistral/"):])
     elif model_name.startswith("claude-"):
         return ("anthropic", model_name)
     else:
@@ -78,6 +84,8 @@ def setup_llm(
     glm_api_key: str | None = None,
     kimi_api_key: str | None = None,
     qwen_api_key: str | None = None,
+    xai_api_key: str | None = None,
+    mistral_api_key: str | None = None,
     openai_compat_api_key: str | None = None,
     openai_compat_base_url: str | None = None,
     aws_access_key_id: str | None = None,
@@ -239,6 +247,30 @@ def setup_llm(
             temperature=0,
         )
 
+    elif provider == "xai":
+        if not xai_api_key:
+            raise ValueError(
+                f"xAI (Grok) API key is required for model '{model_name}'"
+            )
+        llm = ChatOpenAI(
+            model=api_model,
+            api_key=xai_api_key,
+            base_url="https://api.x.ai/v1",
+            temperature=0,
+        )
+
+    elif provider == "mistral":
+        if not mistral_api_key:
+            raise ValueError(
+                f"Mistral AI API key is required for model '{model_name}'"
+            )
+        llm = ChatOpenAI(
+            model=api_model,
+            api_key=mistral_api_key,
+            base_url="https://api.mistral.ai/v1",
+            temperature=0,
+        )
+
     elif provider == "bedrock":
         if not aws_access_key_id or not aws_secret_access_key:
             raise ValueError(
@@ -322,6 +354,8 @@ def apply_project_settings(orchestrator, project_id: str) -> None:
         glm_p = _resolve_provider_key(user_providers, "glm")
         kimi_p = _resolve_provider_key(user_providers, "kimi")
         qwen_p = _resolve_provider_key(user_providers, "qwen")
+        xai_p = _resolve_provider_key(user_providers, "xai")
+        mistral_p = _resolve_provider_key(user_providers, "mistral")
 
         try:
             orchestrator.llm = setup_llm(
@@ -334,6 +368,8 @@ def apply_project_settings(orchestrator, project_id: str) -> None:
                 glm_api_key=(glm_p or {}).get("apiKey"),
                 kimi_api_key=(kimi_p or {}).get("apiKey"),
                 qwen_api_key=(qwen_p or {}).get("apiKey"),
+                xai_api_key=(xai_p or {}).get("apiKey"),
+                mistral_api_key=(mistral_p or {}).get("apiKey"),
                 aws_access_key_id=(bedrock_p or {}).get("awsAccessKeyId"),
                 aws_secret_access_key=(bedrock_p or {}).get("awsSecretKey"),
                 aws_region=(bedrock_p or {}).get("awsRegion") or "us-east-1",

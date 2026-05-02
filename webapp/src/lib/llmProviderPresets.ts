@@ -2,7 +2,7 @@ import type { ComponentType, SVGProps } from 'react'
 import { SiOpenai, SiAnthropic, SiGooglegemini } from 'react-icons/si'
 import { FaAws } from 'react-icons/fa6'
 import { LuSettings, LuSparkles } from 'react-icons/lu'
-import { SiDeepseek, SiOpenrouter, SiMoonshot, SiQwen } from '@/components/icons/ProviderBrandIcons'
+import { SiDeepseek, SiOpenrouter, SiMoonshot, SiQwen, SiXai, SiMistral } from '@/components/icons/ProviderBrandIcons'
 
 /**
  * Presets for OpenAI-Compatible LLM provider base URLs.
@@ -72,6 +72,8 @@ export const PROVIDER_TYPES = [
   { id: 'glm', name: 'GLM (Zhipu AI)', description: 'Chinese AI models with strong multilingual capabilities.', Icon: LuSparkles as ProviderIcon, apiKeyUrl: 'https://open.bigmodel.cn/usercenter/apikeys' },
   { id: 'kimi', name: 'Kimi (Moonshot)', description: 'Long-context models with up to 200k tokens support.', Icon: SiMoonshot as ProviderIcon, apiKeyUrl: 'https://platform.moonshot.ai/console/api-keys' },
   { id: 'qwen', name: 'Qwen (Alibaba)', description: 'Open-source models from Alibaba with strong reasoning.', Icon: SiQwen as ProviderIcon, apiKeyUrl: 'https://bailian.console.aliyun.com/?apiKey=1#/api-key' },
+  { id: 'xai', name: 'xAI (Grok)', description: 'Grok models by xAI — state-of-the-art reasoning.', Icon: SiXai as ProviderIcon, apiKeyUrl: 'https://console.x.ai/' },
+  { id: 'mistral', name: 'Mistral AI', description: 'Mistral models — open-weight and commercial.', Icon: SiMistral as ProviderIcon, apiKeyUrl: 'https://console.mistral.ai/api-keys/' },
   { id: 'bedrock', name: 'AWS Bedrock', description: 'AWS Bedrock foundation models', Icon: FaAws as ProviderIcon, apiKeyUrl: 'https://console.aws.amazon.com/iam/home#/security_credentials' },
   { id: 'openai_compatible', name: 'OpenAI-Compatible', description: 'Any OpenAI-compatible endpoint (Ollama, vLLM, Groq, etc.)', Icon: LuSettings as ProviderIcon, apiKeyUrl: '' },
 ] as const

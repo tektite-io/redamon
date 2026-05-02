@@ -155,6 +155,79 @@ async def fetch_openrouter_models(api_key: str = "") -> list[dict]:
 
 
 # ---------------------------------------------------------------------------
+# xAI (Grok)
+# ---------------------------------------------------------------------------
+_XAI_FALLBACK_MODELS: list[tuple[str, str]] = [
+    ("grok-3", "Grok 3"),
+    ("grok-3-fast", "Grok 3 Fast"),
+    ("grok-3-mini", "Grok 3 Mini"),
+    ("grok-3-mini-fast", "Grok 3 Mini Fast"),
+    ("grok-2", "Grok 2"),
+    ("grok-2-image", "Grok 2 Image"),
+]
+
+
+async def fetch_xai_models(api_key: str = "") -> list[dict]:
+    """Fetch chat models from xAI's OpenAI-compatible /v1/models endpoint."""
+    if not api_key:
+        return []
+
+    discovered: list[dict] = await _fetch_openai_compat_models(
+        base_url="https://api.x.ai/v1",
+        api_key=api_key,
+        id_prefix="xai",
+        description="xAI Grok",
+    )
+
+    if not discovered:
+        for mid, mname in _XAI_FALLBACK_MODELS:
+            discovered.append(_model(
+                id=f"xai/{mid}",
+                name=mname,
+                description="xAI Grok",
+            ))
+
+    discovered.sort(key=lambda m: m["id"], reverse=True)
+    return discovered
+
+
+# ---------------------------------------------------------------------------
+# Mistral AI
+# ---------------------------------------------------------------------------
+_MISTRAL_FALLBACK_MODELS: list[tuple[str, str]] = [
+    ("mistral-large-2411", "Mistral Large (2411)"),
+    ("mistral-small-2501", "Mistral Small (2501)"),
+    ("mistral-moderation-2411", "Mistral Moderation (2411)"),
+    ("open-mistral-nemo", "Mistral Nemo"),
+    ("open-codestral-mamba", "Codestral Mamba"),
+]
+
+
+async def fetch_mistral_models(api_key: str = "") -> list[dict]:
+    """Fetch chat models from Mistral AI's OpenAI-compatible /v1/models endpoint."""
+    if not api_key:
+        return []
+
+    discovered: list[dict] = await _fetch_openai_compat_models(
+        base_url="https://api.mistral.ai/v1",
+        api_key=api_key,
+        id_prefix="mistral",
+        description="Mistral AI",
+    )
+
+    if not discovered:
+        for mid, mname in _MISTRAL_FALLBACK_MODELS:
+            discovered.append(_model(
+                id=f"mistral/{mid}",
+                name=mname,
+                description="Mistral AI",
+            ))
+
+    discovered.sort(key=lambda m: m["id"], reverse=True)
+    return discovered
+
+
+# ---------------------------------------------------------------------------
 # DeepSeek
 # ---------------------------------------------------------------------------
 # Curated fallback used if /v1/models is unreachable. Keep ids in sync with the
@@ -429,6 +502,10 @@ async def fetch_all_models(
             tasks_db[f"Kimi ({pname})"] = fetch_kimi_models(api_key=p.get("apiKey", ""))
         elif ptype == "qwen":
             tasks_db[f"Qwen ({pname})"] = fetch_qwen_models(api_key=p.get("apiKey", ""))
+        elif ptype == "xai":
+            tasks_db[f"xAI Grok ({pname})"] = fetch_xai_models(api_key=p.get("apiKey", ""))
+        elif ptype == "mistral":
+            tasks_db[f"Mistral AI ({pname})"] = fetch_mistral_models(api_key=p.get("apiKey", ""))
         elif ptype == "bedrock":
             tasks_db[f"AWS Bedrock ({pname})"] = fetch_bedrock_models(
                 region=p.get("awsRegion", "us-east-1"),

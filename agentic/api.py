@@ -179,6 +179,8 @@ async def check_target_guardrail(body: GuardrailRequest):
                 glm_p = _resolve_provider_key(user_providers, "glm")
                 kimi_p = _resolve_provider_key(user_providers, "kimi")
                 qwen_p = _resolve_provider_key(user_providers, "qwen")
+                xai_p = _resolve_provider_key(user_providers, "xai")
+                mistral_p = _resolve_provider_key(user_providers, "mistral")
 
                 orchestrator.llm = setup_llm(
                     model_name,
@@ -190,6 +192,8 @@ async def check_target_guardrail(body: GuardrailRequest):
                     glm_api_key=(glm_p or {}).get("apiKey"),
                     kimi_api_key=(kimi_p or {}).get("apiKey"),
                     qwen_api_key=(qwen_p or {}).get("apiKey"),
+                    xai_api_key=(xai_p or {}).get("apiKey"),
+                    mistral_api_key=(mistral_p or {}).get("apiKey"),
                 )
                 orchestrator.model_name = model_name
                 logger.info(f"Guardrail: bootstrapped LLM with default model {model_name}")
@@ -470,6 +474,8 @@ def _setup_llm_for_endpoint(model_name: str) -> "BaseChatModel":
     glm_p = _resolve_provider_key(user_providers, "glm")
     kimi_p = _resolve_provider_key(user_providers, "kimi")
     qwen_p = _resolve_provider_key(user_providers, "qwen")
+    xai_p = _resolve_provider_key(user_providers, "xai")
+    mistral_p = _resolve_provider_key(user_providers, "mistral")
 
     return setup_llm(
         model_name,
@@ -481,6 +487,8 @@ def _setup_llm_for_endpoint(model_name: str) -> "BaseChatModel":
         glm_api_key=(glm_p or {}).get("apiKey"),
         kimi_api_key=(kimi_p or {}).get("apiKey"),
         qwen_api_key=(qwen_p or {}).get("apiKey"),
+        xai_api_key=(xai_p or {}).get("apiKey"),
+        mistral_api_key=(mistral_p or {}).get("apiKey"),
         aws_access_key_id=(bedrock_p or {}).get("awsAccessKeyId"),
         aws_secret_access_key=(bedrock_p or {}).get("awsSecretKey"),
         aws_region=(bedrock_p or {}).get("awsRegion") or "us-east-1",
@@ -535,6 +543,8 @@ def _build_llm_for_user(user_id: Optional[str]):
     glm_p = _resolve_provider_key(user_providers, "glm")
     kimi_p = _resolve_provider_key(user_providers, "kimi")
     qwen_p = _resolve_provider_key(user_providers, "qwen")
+    xai_p = _resolve_provider_key(user_providers, "xai")
+    mistral_p = _resolve_provider_key(user_providers, "mistral")
     return setup_llm(
         model_name,
         openai_api_key=(openai_p or {}).get("apiKey"),
@@ -545,6 +555,8 @@ def _build_llm_for_user(user_id: Optional[str]):
         glm_api_key=(glm_p or {}).get("apiKey"),
         kimi_api_key=(kimi_p or {}).get("apiKey"),
         qwen_api_key=(qwen_p or {}).get("apiKey"),
+        xai_api_key=(xai_p or {}).get("apiKey"),
+        mistral_api_key=(mistral_p or {}).get("apiKey"),
         aws_access_key_id=(bedrock_p or {}).get("awsAccessKeyId"),
         aws_secret_access_key=(bedrock_p or {}).get("awsSecretKey"),
         aws_region=(bedrock_p or {}).get("awsRegion") or "us-east-1",
@@ -819,6 +831,26 @@ async def test_llm_provider(body: LlmProviderTestRequest):
                 )
             pick = next((m for m in available if "turbo" in m["id"].lower()), available[0])
             llm = setup_llm(pick["id"], qwen_api_key=body.apiKey)
+        elif ptype == "xai":
+            from orchestrator_helpers.model_providers import fetch_xai_models
+            available = await fetch_xai_models(api_key=body.apiKey)
+            if not available:
+                return JSONResponse(
+                    content={"success": False, "error": "No xAI models available for this API key"},
+                    status_code=400,
+                )
+            pick = next((m for m in available if "mini" in m["id"].lower() or "fast" in m["id"].lower()), available[0])
+            llm = setup_llm(pick["id"], xai_api_key=body.apiKey)
+        elif ptype == "mistral":
+            from orchestrator_helpers.model_providers import fetch_mistral_models
+            available = await fetch_mistral_models(api_key=body.apiKey)
+            if not available:
+                return JSONResponse(
+                    content={"success": False, "error": "No Mistral models available for this API key"},
+                    status_code=400,
+                )
+            pick = next((m for m in available if "small" in m["id"].lower() or "nemo" in m["id"].lower()), available[0])
+            llm = setup_llm(pick["id"], mistral_api_key=body.apiKey)
         elif ptype == "bedrock":
             llm = setup_llm(
                 "bedrock/anthropic.claude-3-haiku-20240307-v1:0",
@@ -1183,6 +1215,14 @@ async def text_to_cypher(body: TextToCypherRequest):
     openai_p = _resolve_provider_key(user_providers, "openai")
     anthropic_p = _resolve_provider_key(user_providers, "anthropic")
     openrouter_p = _resolve_provider_key(user_providers, "openrouter")
+    bedrock_p = _resolve_provider_key(user_providers, "bedrock")
+    deepseek_p = _resolve_provider_key(user_providers, "deepseek")
+    gemini_p = _resolve_provider_key(user_providers, "gemini")
+    glm_p = _resolve_provider_key(user_providers, "glm")
+    kimi_p = _resolve_provider_key(user_providers, "kimi")
+    qwen_p = _resolve_provider_key(user_providers, "qwen")
+    xai_p = _resolve_provider_key(user_providers, "xai")
+    mistral_p = _resolve_provider_key(user_providers, "mistral")
 
     try:
         # Check if model uses custom provider config
@@ -1208,6 +1248,16 @@ async def text_to_cypher(body: TextToCypherRequest):
                 openai_api_key=(openai_p or {}).get("apiKey"),
                 anthropic_api_key=(anthropic_p or {}).get("apiKey"),
                 openrouter_api_key=(openrouter_p or {}).get("apiKey"),
+                deepseek_api_key=(deepseek_p or {}).get("apiKey"),
+                gemini_api_key=(gemini_p or {}).get("apiKey"),
+                glm_api_key=(glm_p or {}).get("apiKey"),
+                kimi_api_key=(kimi_p or {}).get("apiKey"),
+                qwen_api_key=(qwen_p or {}).get("apiKey"),
+                xai_api_key=(xai_p or {}).get("apiKey"),
+                mistral_api_key=(mistral_p or {}).get("apiKey"),
+                aws_access_key_id=(bedrock_p or {}).get("awsAccessKeyId"),
+                aws_secret_access_key=(bedrock_p or {}).get("awsSecretKey"),
+                aws_region=(bedrock_p or {}).get("awsRegion") or "us-east-1",
             )
     except Exception as e:
         logger.error(f"text-to-cypher: failed to create LLM: {e}")
